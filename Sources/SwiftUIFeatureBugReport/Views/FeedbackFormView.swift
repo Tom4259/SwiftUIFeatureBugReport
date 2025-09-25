@@ -7,12 +7,9 @@
 
 import SwiftUI
 
-struct FeedbackFormView: View {
-    
+public struct FeedbackFormView: View {
+    private let gitHubService: GitHubService
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var gitHubService: GitHubService
-    
     
     @State private var title = ""
     @State private var description = ""
@@ -21,13 +18,11 @@ struct FeedbackFormView: View {
     @State private var showSuccess = false
     @State private var errorMessage: String?
     
-    
-    init(credentils: GitHubCredentials) {
-        
-        gitHubService = GitHubService(credentials: credentils)
+    public init(gitHubService: GitHubService) {
+        self.gitHubService = gitHubService
     }
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Feedback Type")) {
@@ -103,7 +98,7 @@ struct FeedbackFormView: View {
         
         do {
             let deviceInfo = DeviceInfo.generateReport()
-            try await gitHubService.createIssue(
+            let issueNumber = try await gitHubService.createIssue(
                 title: title,
                 description: description,
                 type: selectedType,

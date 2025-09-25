@@ -7,87 +7,98 @@
 
 import SwiftUI
 
-struct IssuesListView: View {
+public struct IssuesListView: View {
     
-    @State private var gitHubService: GitHubService
+    private let gitHubService: GitHubService
+    
+    @State private var votingService = VotingService()
+    
     @State private var selectedFilter: IssueType = .all
+    
     @State private var showingFeedbackForm = false
+    @State private var votingInProgress: Set<Int> = []
+    @State private var errorMessage: String?
+    @State private var showErrorAlert = false
     
-    let credentials: GitHubCredentials
-    
-    init(credentials: GitHubCredentials) {
+    public init(credentials: GitHubCredentials) {
         
-        self.credentials = credentials
         self.gitHubService = GitHubService(credentials: credentials)
     }
     
     var filteredIssues: [GitHubIssue] {
+        
         switch selectedFilter {
-        case .all:
-            return gitHubService.issues
-        case .bugs:
-            return gitHubService.issues.filter { $0.isBug }
-        case .features:
-            return gitHubService.issues.filter { $0.isFeatureRequest }
+            
+        case .all: return gitHubService.issues
+        case .bugs: return gitHubService.issues.filter { $0.isBug }
+        case .features: return gitHubService.issues.filter { $0.isFeatureRequest }
         }
     }
     
-    var body: some View {
-        NavigationView {
-            VStack {
-                // Filter Picker
-                Picker("Filter", selection: $selectedFilter) {
-                    ForEach(IssueType.allCases, id: \.self) { type in
-                        Text(type.rawValue).tag(type)
-                    }
+    public var body: some View {
+        
+        VStack {
+            // Filter Picker
+            Picker("Filter", selection: $selectedFilter) {
+                ForEach(IssueType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
                 }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
+            
+            if gitHubService.isLoading {
                 
-                if gitHubService.isLoading {
-                    ProgressView("Loading...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if filteredIssues.isEmpty {
-                    emptyStateView
-                } else {
-                    List(filteredIssues) { issue in
-                        IssueRowView(issue: issue) {
-                            Task {
-                                await upvoteIssue(issue)
-                            }
-                        }
-                    }
-                    .refreshable {
-                        await gitHubService.loadIssues(type: selectedFilter)
-                    }
+                ProgressView("Loading...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+            }
+            else if filteredIssues.isEmpty {
+                
+                emptyStateView
+            }
+            else {
+                
+                List(filteredIssues) { issue in
+                    
+                    IssueRowView(
+                        issue: issue,
+                        isVoting: votingInProgress.contains(issue.number),
+                        hasVoted: votingService.hasVoted(for: issue.number)
+                    ) { await upvoteIssue(issue) }
                 }
-            }
-            .navigationTitle("Feedback")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingFeedbackForm = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
+                .refreshable {
+                    
+                    await gitHubService.loadIssues(type: selectedFilter)
                 }
-            }
-            .task {
-                await gitHubService.loadIssues(type: selectedFilter)
-            }
-            .onChange(of: selectedFilter) { _, newValue in
-                Task {
-                    await gitHubService.loadIssues(type: newValue)
-                }
-            }
-            .sheet(isPresented: $showingFeedbackForm) {
-                FeedbackFormView(credentils: credentials)
             }
         }
+        .navigationTitle("Feedback")
+        .toolbar {
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                
+                Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
+            }
+        }
+        
+        .task { await gitHubService.loadIssues(type: selectedFilter) }
+        
+        .onChange(of: selectedFilter) { _, newValue in
+            Task {
+                await gitHubService.loadIssues(type: newValue)
+            }
+        }
+        
+        .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService) }
+        
+        .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })
     }
     
     private var emptyStateView: some View {
+        
         VStack(spacing: 20) {
+            
             Image(systemName: selectedFilter == .bugs ? "ladybug.circle" : "lightbulb.circle")
                 .font(.system(size: 50))
                 .foregroundColor(.gray)
@@ -110,24 +121,65 @@ struct IssuesListView: View {
     }
     
     private func upvoteIssue(_ issue: GitHubIssue) async {
+        
+        // Prevent multiple simultaneous votes on same issue
+        guard !votingInProgress.contains(issue.number) else { return }
+        
+        // Check if user already voted
+        if votingService.hasVoted(for: issue.number) {
+            errorMessage = "You've already voted for this issue"
+            showErrorAlert = true
+            return
+        }
+        
+        votingInProgress.insert(issue.number)
+        
         do {
-            try await gitHubService.addReaction(to: issue.number)
-            // Refresh the list to show updated reaction counts
+            try await votingService.addVote(to: issue.number, using: gitHubService)
+            // Refresh the list to show updated vote counts
             await gitHubService.loadIssues(type: selectedFilter)
-        } catch {
+            
+        }
+        catch {
+            
+            errorMessage = error.localizedDescription
+            showErrorAlert = true
+            
             print("Failed to upvote: \(error)")
         }
+        
+        votingInProgress.remove(issue.number)
     }
 }
 
-struct IssueRowView: View {
-    let issue: GitHubIssue
-    let onUpvote: () -> Void
+public struct IssueRowView: View {
     
-    var body: some View {
+    public let issue: GitHubIssue
+    
+    public let isVoting: Bool
+    public let hasVoted: Bool
+    
+    public let onUpvote: () async -> Void
+    
+    var voteCount: Int {
+        
+        GitHubService.parseVoteCount(from: issue.body)
+    }
+    
+    public init(issue: GitHubIssue, isVoting: Bool, hasVoted: Bool, onUpvote: @escaping () async -> Void) {
+        
+        self.issue = issue
+        self.isVoting = isVoting
+        self.hasVoted = hasVoted
+        self.onUpvote = onUpvote
+    }
+    
+    public var body: some View {
+        
         VStack(alignment: .leading, spacing: 8) {
-            // Title and Labels
+                        
             HStack {
+                
                 Text(issue.title)
                     .font(.headline)
                     .lineLimit(2)
@@ -137,25 +189,43 @@ struct IssueRowView: View {
                 IssueTypeLabel(issue: issue)
             }
             
-            // Description
+            // Description (excluding vote count section)
             if let body = issue.body, !body.isEmpty {
-                Text(body.prefix(100) + (body.count > 100 ? "..." : ""))
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .lineLimit(3)
+                
+                let cleanBody = GitHubService.removeVoteSection(from: body)
+                
+                if !cleanBody.isEmpty {
+                    
+                    Text(cleanBody.prefix(100) + (cleanBody.count > 100 ? "..." : ""))
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
+                }
             }
             
             // Bottom row with voting and date
             HStack {
-                Button(action: onUpvote) {
+                
+                Button(action: { Task { await onUpvote() } }) {
+                    
                     HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.circle")
-                        Text("\(issue.upvoteCount)")
+                        
+                        if isVoting {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            
+                        }
+                        else {
+                            Image(systemName: hasVoted ? "checkmark.circle.fill" : "arrow.up.circle")
+                        }
+                        
+                        Text("\(voteCount)")
                     }
-                    .foregroundColor(.blue)
+                    .foregroundColor(hasVoted ? .green : .blue)
                     .font(.caption)
                 }
                 .buttonStyle(.borderless)
+                .disabled(isVoting || hasVoted)
                 
                 Spacer()
                 
@@ -168,27 +238,38 @@ struct IssueRowView: View {
     }
     
     private func formatDate(_ dateString: String) -> String {
+        
         let formatter = ISO8601DateFormatter()
+        
         guard let date = formatter.date(from: dateString) else {
+            
             return "Unknown"
         }
         
         let displayFormatter = RelativeDateTimeFormatter()
         displayFormatter.unitsStyle = .short
+        
         return displayFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
-struct IssueTypeLabel: View {
-    let issue: GitHubIssue
+
+public struct IssueTypeLabel: View {
     
-    var body: some View {
+    public let issue: GitHubIssue
+    
+    public init(issue: GitHubIssue) {
+        
+        self.issue = issue
+    }
+    
+    public var body: some View {
+        
         Text(issue.isFeatureRequest ? "Feature" : "Bug")
             .font(.caption)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(issue.isFeatureRequest ? Color.blue : Color.red)
+            .background(issue.isFeatureRequest ? Color.blue : Color.red, in: Capsule())
             .foregroundColor(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }

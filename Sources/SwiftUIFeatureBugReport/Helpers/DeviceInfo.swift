@@ -5,12 +5,12 @@
 //  Created by Tom Redway on 25/09/2025.
 //
 
-
 import UIKit
 
-struct DeviceInfo {
+public struct DeviceInfo {
     
-    @MainActor static func generateReport() -> String {
+    /// Generate a formatted device information report for bug reports
+    public static func generateReport() -> String {
         let device = UIDevice.current
         let app = Bundle.main
         
@@ -26,7 +26,8 @@ struct DeviceInfo {
         """
     }
     
-    private static func getDeviceModel() -> String {
+    /// Get individual device information components
+    public static func getDeviceModel() -> String {
         var systemInfo = utsname()
         uname(&systemInfo)
         let machineMirror = Mirror(reflecting: systemInfo.machine)
@@ -35,5 +36,21 @@ struct DeviceInfo {
             return identifier + String(UnicodeScalar(UInt8(value)))
         }
         return identifier
+    }
+    
+    public static func getAppVersion() -> String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+    
+    public static func getBuildNumber() -> String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+    }
+    
+    public static func getIOSVersion() -> String {
+        UIDevice.current.systemVersion
+    }
+    
+    public static func getDeviceID() -> String {
+        UIDevice.current.identifierForVendor?.uuidString ?? "Unknown"
     }
 }
