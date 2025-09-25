@@ -37,41 +37,43 @@ public struct IssuesListView: View {
     
     public var body: some View {
         
-        VStack {
-            // Filter Picker
-            Picker("Filter", selection: $selectedFilter) {
-                ForEach(IssueType.allCases, id: \.self) { type in
-                    Text(type.rawValue).tag(type)
-                }
-            }
-            .pickerStyle(SegmentedPickerStyle())
-            .padding(.horizontal)
+        Form {
             
-            if gitHubService.isLoading {
+            Section {
                 
-                ProgressView("Loading...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-            }
-            else if filteredIssues.isEmpty {
-                
-                emptyStateView
-            }
-            else {
-                
-                List(filteredIssues) { issue in
+                Picker("Filter", selection: $selectedFilter) {
                     
-                    IssueRowView(
-                        issue: issue,
-                        isVoting: votingInProgress.contains(issue.number),
-                        hasVoted: votingService.hasVoted(for: issue.number)
-                    ) { await upvoteIssue(issue) }
+                    ForEach(IssueType.allCases, id: \.self) { type in
+                        
+                        Text(type.rawValue)
+                    }
                 }
-                .refreshable {
-                    
-                    await gitHubService.loadIssues(type: selectedFilter)
-                }
+                .pickerStyle(.segmented)
             }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+                
+                if gitHubService.isLoading {
+                    
+                    ProgressView("Loading...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
+                }
+                else if filteredIssues.isEmpty {
+                    
+                    emptyStateView
+                }
+                else {
+                    
+                    List(filteredIssues) { issue in
+                        
+                        IssueRowView(
+                            issue: issue,
+                            isVoting: votingInProgress.contains(issue.number),
+                            hasVoted: votingService.hasVoted(for: issue.number)
+                        ) { await upvoteIssue(issue) }
+                    }
+                }
         }
         .navigationTitle("Feedback")
         .toolbar {
@@ -84,13 +86,17 @@ public struct IssuesListView: View {
         
         .task { await gitHubService.loadIssues(type: selectedFilter) }
         
+        .refreshable { await gitHubService.loadIssues(type: selectedFilter) }
+        
         .onChange(of: selectedFilter) { _, newValue in
+            
             Task {
+                
                 await gitHubService.loadIssues(type: newValue)
             }
         }
         
-        .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService) }
+        .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter) }
         
         .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })
     }
@@ -211,11 +217,12 @@ public struct IssueRowView: View {
                     HStack(spacing: 4) {
                         
                         if isVoting {
+                            
                             ProgressView()
                                 .scaleEffect(0.7)
-                            
                         }
                         else {
+                            
                             Image(systemName: hasVoted ? "checkmark.circle.fill" : "arrow.up.circle")
                         }
                         
