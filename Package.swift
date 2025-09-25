@@ -18,6 +18,5 @@ let package = Package(
         .target(
             name: "SwiftUIFeatureBugReport"
         ),
-
     ]
 )
