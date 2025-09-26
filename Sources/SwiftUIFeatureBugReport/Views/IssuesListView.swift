@@ -109,8 +109,18 @@ public struct IssuesListView: View {
                 .font(.system(size: 50))
                 .foregroundColor(.gray)
             
-            Text("No \(selectedFilter.rawValue.lowercased()) yet")
-                .font(.headline)
+            Group {
+                
+                if selectedFilter == .all {
+                    
+                    Text("Nothing yet")
+                }
+                else {
+                    
+                    Text("No \(selectedFilter.rawValue.lowercased()) yet")
+                }
+            }
+            .font(.headline)
             
             Text("Be the first to submit \(selectedFilter == .bugs ? "a bug report" : selectedFilter == .features ? "a feature request" : "feedback")!")
                 .font(.body)

@@ -8,8 +8,11 @@
 import SwiftUI
 
 public struct FeedbackFormView: View {
-    private let gitHubService: GitHubService
+    
     @Environment(\.dismiss) private var dismiss
+    
+    private let gitHubService: GitHubService
+    
     
     @State private var title = ""
     @State private var description = ""
@@ -123,7 +126,7 @@ public struct FeedbackFormView: View {
         do {
             
             let deviceInfo = DeviceInfo.generateReport()
-            let issueNumber = try await gitHubService.createIssue(
+            try await gitHubService.createIssue(
                 title: title,
                 description: description,
                 type: selectedType,

@@ -10,7 +10,8 @@ import UIKit
 public struct DeviceInfo {
     
     /// Generate a formatted device information report for bug reports
-    public static func generateReport() -> String {
+    @MainActor public static func generateReport() -> String {
+        
         let device = UIDevice.current
         let app = Bundle.main
         
@@ -22,35 +23,44 @@ public struct DeviceInfo {
         Device: \(deviceModel)
         iOS Version: \(device.systemVersion)
         App Version: \(appVersion) (\(buildNumber))
-        Device ID: \(device.identifierForVendor?.uuidString ?? "Unknown")
         """
     }
     
     /// Get individual device information components
     public static func getDeviceModel() -> String {
+        
         var systemInfo = utsname()
         uname(&systemInfo)
+        
         let machineMirror = Mirror(reflecting: systemInfo.machine)
+        
         let identifier = machineMirror.children.reduce("") { identifier, element in
+            
             guard let value = element.value as? Int8, value != 0 else { return identifier }
+            
             return identifier + String(UnicodeScalar(UInt8(value)))
         }
+        
         return identifier
     }
     
     public static func getAppVersion() -> String {
+        
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
     
     public static func getBuildNumber() -> String {
+        
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
     }
     
-    public static func getIOSVersion() -> String {
+    @MainActor public static func getIOSVersion() -> String {
+        
         UIDevice.current.systemVersion
     }
     
-    public static func getDeviceID() -> String {
+    @MainActor public static func getDeviceID() -> String {
+        
         UIDevice.current.identifierForVendor?.uuidString ?? "Unknown"
     }
 }
