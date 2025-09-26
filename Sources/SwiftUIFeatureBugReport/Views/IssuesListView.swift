@@ -88,14 +88,6 @@ public struct IssuesListView: View {
         
         .refreshable { await gitHubService.loadIssues(type: selectedFilter) }
         
-        .onChange(of: selectedFilter) { _, newValue in
-            
-            Task {
-                
-                await gitHubService.loadIssues(type: newValue)
-            }
-        }
-        
         .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter) }
         
         .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })

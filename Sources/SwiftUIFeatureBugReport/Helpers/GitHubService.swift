@@ -3,6 +3,7 @@ import Foundation
 
 @Observable @MainActor public class GitHubService {
     
+    private var allIssues: [GitHubIssue] = []
     public var issues: [GitHubIssue] = []
     public var isLoading = false
     public var errorMessage: String?
@@ -157,7 +158,6 @@ import Foundation
                 
                 return votes1 > votes2
             }
-            
         }
         catch {
             
