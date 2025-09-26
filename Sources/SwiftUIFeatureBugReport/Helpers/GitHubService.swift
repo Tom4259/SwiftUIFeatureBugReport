@@ -130,8 +130,7 @@ import Foundation
                 throw GitHubError.invalidResponse
             }
             
-            let decoder = JSONDecoder()
-            let fetchedIssues = try decoder.decode([GitHubIssue].self, from: data)
+            let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data)
             
             // Filter issues based on type (since GitHub API doesn't support OR logic for labels)
             let filteredIssues: [GitHubIssue]
@@ -210,8 +209,11 @@ import Foundation
             throw GitHubError.failedToCreate
         }
         
-        let decoder = JSONDecoder()
-        let createdIssue = try decoder.decode(GitHubIssue.self, from: data)
+        let createdIssue = try JSONDecoder().decode(GitHubIssue.self, from: data)
+        
+        
+        Task { await loadIssues() }
+        
         
         return createdIssue.number
     }
