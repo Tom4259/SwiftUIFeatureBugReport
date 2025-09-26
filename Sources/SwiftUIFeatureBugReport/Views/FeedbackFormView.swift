@@ -24,7 +24,7 @@ public struct FeedbackFormView: View {
     public init(gitHubService: GitHubService, selectedType: IssueType) {
         
         self.gitHubService = gitHubService
-        self.selectedType = selectedType == .all ? .bugs : .features
+        self.selectedType = selectedType == .all ? .bugs : selectedType
     }
     
     public var body: some View {
