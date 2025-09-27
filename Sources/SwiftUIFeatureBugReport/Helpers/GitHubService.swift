@@ -1,5 +1,6 @@
 // GitHubService.swift
 import Foundation
+import SwiftUI
 
 @Observable @MainActor public class GitHubService {
     
@@ -212,7 +213,7 @@ import Foundation
         let createdIssue = try JSONDecoder().decode(GitHubIssue.self, from: data)
         
         
-        Task { await loadIssues() }
+        withAnimation { issues.append(createdIssue) }
         
         
         return createdIssue.number
