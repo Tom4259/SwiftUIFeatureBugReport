@@ -213,7 +213,7 @@ import SwiftUI
         let createdIssue = try JSONDecoder().decode(GitHubIssue.self, from: data)
         
         
-        withAnimation { issues.append(createdIssue) }
+        withAnimation { issues.insert(createdIssue, at: 0) }
         
         
         return createdIssue.number
