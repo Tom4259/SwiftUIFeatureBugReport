@@ -100,25 +100,14 @@ import SwiftUI
     
     // MARK: - Public API Methods
     
-    public func loadIssues(type: IssueType = .all) async {
+    public func loadIssues() async {
         
         isLoading = true
         errorMessage = nil
         
         do {
             
-            var urlString = "\(baseURL)/repos/\(owner)/\(repo)/issues?state=open&sort=created&direction=desc"
-            
-            switch type {
-                
-            case .bugs:
-                urlString += "&labels=bug"
-            case .features:
-                urlString += "&labels=feature-request"
-            case .all: break
-            }
-            
-            guard let url = URL(string: urlString) else { throw GitHubError.invalidURL }
+            guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues?state=open&sort=created&direction=desc") else { throw GitHubError.invalidURL }
             
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -134,21 +123,8 @@ import SwiftUI
             
             let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data)
             
-            // Filter issues based on type (since GitHub API doesn't support OR logic for labels)
-            let filteredIssues: [GitHubIssue]
-            
-            switch type {
-                
-            case .all:
-                filteredIssues = fetchedIssues.filter { issue in
-                    issue.isBug || issue.isFeatureRequest
-                }
-                
-            case .bugs, .features: filteredIssues = fetchedIssues
-            }
-            
             // Sort by vote count (highest first), then by creation date
-            self.issues = filteredIssues.sorted { issue1, issue2 in
+            self.issues = fetchedIssues.sorted { issue1, issue2 in
                 let votes1 = Self.parseVoteCount(from: issue1.body)
                 let votes2 = Self.parseVoteCount(from: issue2.body)
                 

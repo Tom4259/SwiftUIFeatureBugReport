@@ -84,9 +84,9 @@ public struct IssuesListView: View {
             }
         }
         
-        .task { await gitHubService.loadIssues(type: selectedFilter) }
+        .task { await gitHubService.loadIssues() }
         
-        .refreshable { await gitHubService.loadIssues(type: selectedFilter) }
+        .refreshable { await gitHubService.loadIssues() }
         
         .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter) }
         
@@ -135,18 +135,20 @@ public struct IssuesListView: View {
         
         // Check if user already voted
         if votingService.hasVoted(for: issue.number) {
+            
             errorMessage = "You've already voted for this issue"
             showErrorAlert = true
+            
             return
         }
         
         votingInProgress.insert(issue.number)
         
         do {
+            
             try await votingService.addVote(to: issue.number, using: gitHubService)
             // Refresh the list to show updated vote counts
-            await gitHubService.loadIssues(type: selectedFilter)
-            
+            await gitHubService.loadIssues()
         }
         catch {
             
