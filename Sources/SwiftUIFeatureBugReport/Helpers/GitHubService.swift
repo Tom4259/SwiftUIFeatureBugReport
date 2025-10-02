@@ -147,7 +147,7 @@ import SwiftUI
     }
     
     @discardableResult
-    public func createIssue(title: String, description: String, type: IssueType, deviceInfo: String) async throws -> Int {
+    public func createIssue(title: String, description: String, contactEmail: String? = nil, type: IssueType, deviceInfo: String) async throws -> Int {
         
         let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues")!
         
@@ -158,6 +158,9 @@ import SwiftUI
         ---
         **Device Information:**
         \(deviceInfo)
+        
+        **Contact Email:**
+        \(contactEmail ?? "N/A")
         
         *Submitted via mobile app*
         

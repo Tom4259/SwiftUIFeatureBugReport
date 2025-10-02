@@ -16,6 +16,7 @@ public struct FeedbackFormView: View {
     
     @State private var title = ""
     @State private var description = ""
+    @State private var contactEmail = ""
     @State private var selectedType: IssueType
     @State private var isSubmitting = false
     @State private var showSuccess = false
@@ -61,15 +62,21 @@ public struct FeedbackFormView: View {
                     }
                 }
                 
+                Section(content: {
+                    
+                    TextField("Email", text: $contactEmail)
+                        .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                    
+                }, header: { Text("Contact Email (optional)") },
+                        footer: { Text("To contact you for more details") })
+                
                 
                 Section(footer: Text("Device information will be automatically included")) {
                     
                     Button("Submit \(selectedType == .bugs ? "Bug Report" : "Feature Request")") {
                         
-                        Task {
-                            
-                            await submitFeedback()
-                        }
+                        Task { await submitFeedback() }
                     }
                     .disabled(title.isEmpty || description.isEmpty || isSubmitting)
                 }
@@ -129,6 +136,7 @@ public struct FeedbackFormView: View {
             try await gitHubService.createIssue(
                 title: title,
                 description: description,
+                contactEmail: contactEmail.isEmpty ? nil : contactEmail,
                 type: selectedType,
                 deviceInfo: deviceInfo
             )
