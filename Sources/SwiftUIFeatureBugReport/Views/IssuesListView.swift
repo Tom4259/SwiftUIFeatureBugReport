@@ -67,11 +67,11 @@ public struct IssuesListView: View {
                     
                     List(filteredIssues) { issue in
                         
-                        IssueRowView(
-                            issue: issue,
-                            isVoting: votingInProgress.contains(issue.number),
-                            hasVoted: votingService.hasVoted(for: issue.number)
-                        ) { await upvoteIssue(issue) }
+                        IssueRowView(service: gitHubService,
+                                     issue: issue,
+                                     isVoting: votingInProgress.contains(issue.number),
+                                     hasVoted: votingService.hasVoted(for: issue.number),
+                                     onUpvote: { await upvoteIssue(issue) })
                     }
                 }
         }
@@ -164,20 +164,18 @@ public struct IssuesListView: View {
 
 public struct IssueRowView: View {
     
+    public let service: GitHubService
     public let issue: GitHubIssue
     
     public let isVoting: Bool
     public let hasVoted: Bool
     
-    public let onUpvote: () async -> Void
+    public let onUpvote: () async -> Void    
     
-    var voteCount: Int {
-        
-        GitHubService.parseVoteCount(from: issue.body)
-    }
     
-    public init(issue: GitHubIssue, isVoting: Bool, hasVoted: Bool, onUpvote: @escaping () async -> Void) {
+    public init(service: GitHubService, issue: GitHubIssue, isVoting: Bool, hasVoted: Bool, onUpvote: @escaping () async -> Void) {
         
+        self.service = service
         self.issue = issue
         self.isVoting = isVoting
         self.hasVoted = hasVoted
@@ -186,66 +184,66 @@ public struct IssueRowView: View {
     
     public var body: some View {
         
-        VStack(alignment: .leading, spacing: 8) {
-                        
-            HStack {
-                
-                Text(issue.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                
-                Spacer()
-                
-                IssueTypeLabel(issue: issue)
-            }
+        NavigationLink(destination: { IssueDetailsView(issue: issue, gitHubService: service) }, label: {
             
-            // Description (excluding vote count section)
-            if let body = issue.body, !body.isEmpty {
-                
-                let cleanBody = GitHubService.removeVoteSection(from: body)
-                
-                if !cleanBody.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                            
+                HStack {
                     
-                    Text(cleanBody.prefix(100) + (cleanBody.count > 100 ? "..." : ""))
+                    Text(issue.title)
+                        .font(.headline)
+                        .lineLimit(2)
+                    
+                    Spacer()
+                    
+                    IssueTypeLabel(issue: issue)
+                }
+                
+                // Description (excluding vote count section)
+                if let body = issue.displayableBody, !body.isEmpty {
+                    
+                    Text(body)
                         .font(.body)
                         .foregroundColor(.secondary)
-                        .lineLimit(3)
+                        .lineLimit(2)
                 }
-            }
-            
-            // Bottom row with voting and date
-            HStack {
                 
-                Button(action: { Task { await onUpvote() } }) {
+                // Bottom row with voting and date
+                HStack {
                     
-                    HStack(spacing: 4) {
+                    Button(action: { Task { await onUpvote() } }) {
                         
-                        if isVoting {
+                        HStack(spacing: 4) {
                             
-                            ProgressView()
-                                .scaleEffect(0.7)
-                        }
-                        else {
+                            if isVoting {
+                                
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                            else {
+                                
+                                Image(systemName: hasVoted ? "checkmark.circle.fill" : "arrow.up.circle")
+                            }
                             
-                            Image(systemName: hasVoted ? "checkmark.circle.fill" : "arrow.up.circle")
+                            Text("\(issue.voteCount)")
                         }
-                        
-                        Text("\(voteCount)")
+                        .foregroundColor(hasVoted ? .green : .blue)
+                        .font(.caption)
                     }
-                    .foregroundColor(hasVoted ? .green : .blue)
-                    .font(.caption)
+                    .buttonStyle(.borderless)
+                    .disabled(isVoting || hasVoted)
+                    
+                    Spacer()
+                    
+                    Text(formatDate(issue.created_at))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .buttonStyle(.borderless)
-                .disabled(isVoting || hasVoted)
-                
-                Spacer()
-                
-                Text(formatDate(issue.created_at))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
-        }
-        .padding(.vertical, 4)
+            .padding(.vertical, 4)
+        })
+        
+        
     }
     
     private func formatDate(_ dateString: String) -> String {
@@ -282,5 +280,122 @@ public struct IssueTypeLabel: View {
             .padding(.vertical, 2)
             .background(issue.isFeatureRequest ? Color.blue : Color.red, in: Capsule())
             .foregroundColor(.white)
+    }
+}
+
+
+public struct IssueDetailsView: View {
+    
+    let issue: GitHubIssue
+    let gitHubService: GitHubService
+    
+    @State private var comments: [GitHubComment] = []
+    @State private var isLoadingComments = false
+    @State private var errorMessage: String?
+    
+    public var body: some View {
+        
+        Form {
+            
+            Section("Description") {
+                
+                Text(issue.displayableBody ?? "N/A")
+            }
+            
+            Section("Votes") {
+                
+                Text(issue.voteCount.formatted(.number))
+            }
+            
+            Section {
+                
+                if isLoadingComments {
+                    
+                    HStack {
+                        
+                        ProgressView()
+                        
+                        Text("Loading comments...")
+                    }
+                }
+                else if comments.isEmpty {
+                    
+                    Text("No developer response yet")
+                        .foregroundColor(.secondary)
+                }
+                else {
+                    
+                    ForEach(comments) { comment in
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            
+                            HStack {
+                                
+                                Image(systemName: "person.circle.fill")
+                                    .foregroundColor(.blue)
+                                
+                                Text("Developer")
+//                                Text(comment.user.login)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                
+                                Spacer()
+                                
+                                Text(formatDate(comment.created_at))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Text(comment.body)
+                                .font(.body)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                
+            } header: { Text("Developer Response") }
+            
+            if let errorMessage = errorMessage {
+                
+                Section {
+                    
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+        }
+        .navigationTitle(issue.title)
+        
+        .task { await loadComments() }
+        
+        .refreshable { await loadComments() }
+    }
+    
+    private func loadComments() async {
+        
+        isLoadingComments = true
+        errorMessage = nil
+        
+        do {
+            comments = try await gitHubService.getComments(for: issue.number)
+        }
+        catch {
+            errorMessage = "Failed to load comments: \(error.localizedDescription)"
+        }
+        
+        isLoadingComments = false
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        
+        let formatter = ISO8601DateFormatter()
+        
+        guard let date = formatter.date(from: dateString) else { return "Unknown" }
+        
+        let displayFormatter = RelativeDateTimeFormatter()
+        displayFormatter.unitsStyle = .short
+        
+        return displayFormatter.localizedString(for: date, relativeTo: Date())
     }
 }

@@ -29,49 +29,6 @@ import SwiftUI
         ]
     }
     
-    // MARK: - Vote Parsing Utilities
-    public static func parseVoteCount(from body: String?) -> Int {
-        
-        guard let body = body else { return 0 }
-        
-        // Look for pattern: 👍 Votes: 123
-        let pattern = #"👍 Votes: (\d+)"#
-        
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)),
-              let countRange = Range(match.range(at: 1), in: body) else {
-            return 0
-        }
-        
-        return Int(body[countRange]) ?? 0
-    }
-    
-    public static func removeVoteSection(from body: String) -> String {
-        
-        guard !body.isEmpty else { return body }
-        
-        var cleanedBody = body
-        
-        // Remove the vote section (everything after the vote separator line)
-        if let voteSeparatorRange = cleanedBody.range(of: "\n\n---\n👍 Votes:") {
-            
-            cleanedBody = String(cleanedBody[..<voteSeparatorRange.lowerBound])
-        }
-        
-        // Remove the device information section (everything after the device info separator)
-        if let deviceSeparatorRange = cleanedBody.range(of: "\n\n---\n**Device Information:**") {
-            
-            cleanedBody = String(cleanedBody[..<deviceSeparatorRange.lowerBound])
-        }
-        
-        // Also handle the "Submitted via mobile app" section if it exists without device info
-        if let appSeparatorRange = cleanedBody.range(of: "\n\n*Submitted via mobile app*") {
-            
-            cleanedBody = String(cleanedBody[..<appSeparatorRange.lowerBound])
-        }
-        
-        return cleanedBody.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
     
     private func updateVoteCount(in body: String?, newCount: Int) -> String {
         
@@ -113,7 +70,7 @@ import SwiftUI
             request.cachePolicy = .reloadIgnoringLocalCacheData
             headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
             
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse,
                   200...299 ~= httpResponse.statusCode else {
@@ -125,8 +82,8 @@ import SwiftUI
             
             // Sort by vote count (highest first), then by creation date
             self.issues = fetchedIssues.sorted { issue1, issue2 in
-                let votes1 = Self.parseVoteCount(from: issue1.body)
-                let votes2 = Self.parseVoteCount(from: issue2.body)
+                let votes1 = issue1.voteCount
+                let votes2 = issue2.voteCount
                 
                 if votes1 == votes2 {
                     // If votes are equal, sort by creation date (newest first)
@@ -203,13 +160,57 @@ import SwiftUI
         let issue = try await getIssue(number: issueNumber)
         
         // Parse current vote count
-        let currentVotes = Self.parseVoteCount(from: issue.body)
+        let currentVotes = issue.voteCount
         let newVotes = currentVotes + 1
         
         // Update the issue body with new vote count
         let updatedBody = updateVoteCount(in: issue.body, newCount: newVotes)
         try await updateIssue(number: issueNumber, body: updatedBody)
     }
+    
+    // MARK: - Comments
+
+    // Get all comments for a specific issue
+    public func getComments(for issueNumber: Int) async throws -> [GitHubComment] {
+        
+        let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues/\(issueNumber)/comments")!
+        var request = URLRequest(url: url)
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        
+        let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            
+            throw GitHubError.invalidResponse
+        }
+        
+        return try JSONDecoder().decode([GitHubComment].self, from: data)
+    }
+
+    // Add a comment to an issue
+    public func addComment(to issueNumber: Int, body: String) async throws -> GitHubComment {
+        
+        let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues/\(issueNumber)/comments")!
+        var request = URLRequest(url: url)
+        
+        request.httpMethod = "POST"
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        
+        let commentData = ["body": body]
+        request.httpBody = try JSONSerialization.data(withJSONObject: commentData)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            
+            throw GitHubError.failedToCreate
+        }
+        
+        return try JSONDecoder().decode(GitHubComment.self, from: data)
+    }
+    
     
     // MARK: - Private API Methods
     
@@ -220,7 +221,7 @@ import SwiftUI
         var request = URLRequest(url: url)
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               200...299 ~= httpResponse.statusCode else {
