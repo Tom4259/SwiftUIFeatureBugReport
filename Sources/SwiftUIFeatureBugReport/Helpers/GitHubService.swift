@@ -6,6 +6,7 @@ import SwiftUI
     
     private var allIssues: [GitHubIssue] = []
     public var issues: [GitHubIssue] = []
+    public var completedIssues: [GitHubIssue] = []
     public var isLoading = false
     public var errorMessage: String?
     
@@ -13,6 +14,9 @@ import SwiftUI
     private let owner: String
     private let repo: String
     private let token: String
+    
+    public var hasLoadedInitialIssues: Bool = false
+    public var hasLoadedInitialClosedIssues: Bool = false
     
     public init(credentials: GitHubCredentials) {
         
@@ -59,7 +63,7 @@ import SwiftUI
     
     public func loadIssues() async {
         
-        isLoading = true
+        withAnimation { isLoading = true }
         errorMessage = nil
         
         do {
@@ -81,16 +85,19 @@ import SwiftUI
             let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data)
             
             // Sort by vote count (highest first), then by creation date
-            self.issues = fetchedIssues.sorted { issue1, issue2 in
-                let votes1 = issue1.voteCount
-                let votes2 = issue2.voteCount
+            withAnimation {
                 
-                if votes1 == votes2 {
-                    // If votes are equal, sort by creation date (newest first)
-                    return issue1.created_at > issue2.created_at
+                self.issues = fetchedIssues.sorted { issue1, issue2 in
+                    let votes1 = issue1.voteCount
+                    let votes2 = issue2.voteCount
+                    
+                    if votes1 == votes2 {
+                        // If votes are equal, sort by creation date (newest first)
+                        return issue1.created_at > issue2.created_at
+                    }
+                    
+                    return votes1 > votes2
                 }
-                
-                return votes1 > votes2
             }
         }
         catch {
@@ -100,8 +107,49 @@ import SwiftUI
             print("Error loading issues: \(error)")
         }
         
-        isLoading = false
+        withAnimation { isLoading = false }
     }
+    
+    
+    public func loadClosedIssues() async {
+        
+        withAnimation { isLoading = true }
+        errorMessage = nil
+        
+        do {
+            
+            guard let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues?state=closed&sort=updated&direction=desc") else { throw GitHubError.invalidURL }
+            
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  200...299 ~= httpResponse.statusCode else {
+                
+                throw GitHubError.invalidResponse
+            }
+            
+            let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data)
+            
+            // Sort by last updated (most recent first)
+            withAnimation {
+                
+                self.completedIssues = fetchedIssues.sorted { $0.updated_at > $1.updated_at }
+            }
+        }
+        catch {
+            
+            self.errorMessage = error.localizedDescription
+            
+            print("Error loading closed issues: \(error)")
+        }
+        
+        withAnimation { isLoading = false }
+    }
+    
     
     @discardableResult
     public func createIssue(title: String, description: String, contactEmail: String? = nil, type: IssueType, deviceInfo: String) async throws -> Int {

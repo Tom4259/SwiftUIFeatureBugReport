@@ -9,7 +9,7 @@ import SwiftUI
 
 public struct IssuesListView: View {
     
-    private let gitHubService: GitHubService
+    @State var gitHubService: GitHubService
     
     @State private var votingService = VotingService()
     
@@ -53,13 +53,21 @@ public struct IssuesListView: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
                 
-                if gitHubService.isLoading {
+            if gitHubService.isLoading {
+                
+                ProgressView("Loading...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+            }
+            else {
+                
+                Section {
                     
-                    ProgressView("Loading...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    
+                    NavigationLink(destination: { CompletedIssuesView(gitHubService: gitHubService, filter: selectedFilter) },
+                                   label: { Label("View Completed", systemImage: "checkmark.circle") })
                 }
-                else if filteredIssues.isEmpty {
+                
+                if filteredIssues.isEmpty {
                     
                     emptyStateView
                 }
@@ -74,17 +82,25 @@ public struct IssuesListView: View {
                                      onUpvote: { await upvoteIssue(issue) })
                     }
                 }
+            }
         }
         .navigationTitle("Feedback")
         .toolbar {
             
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 
                 Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
             }
         }
         
-        .task { await gitHubService.loadIssues() }
+        .task {
+            
+            guard !gitHubService.hasLoadedInitialIssues else { return }
+            
+            await gitHubService.loadIssues()
+            
+            gitHubService.hasLoadedInitialIssues = true
+        }
         
         .refreshable { await gitHubService.loadIssues() }
         
