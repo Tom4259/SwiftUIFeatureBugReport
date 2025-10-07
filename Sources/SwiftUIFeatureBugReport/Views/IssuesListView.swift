@@ -75,7 +75,8 @@ public struct IssuesListView: View {
                     
                     List(filteredIssues) { issue in
                         
-                        IssueRowView(service: gitHubService,
+                        IssueRowView(service: $gitHubService,
+                                     selectedFilter: $selectedFilter,
                                      issue: issue,
                                      isVoting: votingInProgress.contains(issue.number),
                                      hasVoted: votingService.hasVoted(for: issue.number),
@@ -180,23 +181,15 @@ public struct IssuesListView: View {
 
 public struct IssueRowView: View {
     
-    public let service: GitHubService
-    public let issue: GitHubIssue
+    @Binding var service: GitHubService
+    @Binding var selectedFilter: IssueType
+    var issue: GitHubIssue
     
-    public let isVoting: Bool
-    public let hasVoted: Bool
+    var isVoting: Bool
+    var hasVoted: Bool
     
-    public let onUpvote: () async -> Void    
+    var onUpvote: () async -> Void
     
-    
-    public init(service: GitHubService, issue: GitHubIssue, isVoting: Bool, hasVoted: Bool, onUpvote: @escaping () async -> Void) {
-        
-        self.service = service
-        self.issue = issue
-        self.isVoting = isVoting
-        self.hasVoted = hasVoted
-        self.onUpvote = onUpvote
-    }
     
     public var body: some View {
         
@@ -212,7 +205,7 @@ public struct IssueRowView: View {
                     
                     Spacer()
                     
-                    IssueTypeLabel(issue: issue)
+                    IssueTypeLabel(selectedFilter: $selectedFilter, issue: issue)
                 }
                 
                 // Description (excluding vote count section)
@@ -281,20 +274,41 @@ public struct IssueRowView: View {
 
 public struct IssueTypeLabel: View {
     
-    public let issue: GitHubIssue
+    @Binding var selectedFilter: IssueType
     
-    public init(issue: GitHubIssue) {
-        
-        self.issue = issue
-    }
+    var issue: GitHubIssue
     
     public var body: some View {
         
-        Text(issue.isFeatureRequest ? "Feature" : "Bug")
+        if let otherLabel = issue.nextLabel {
+            
+            LabelDisplay(label: otherLabel)
+        }
+        
+        if selectedFilter == .all {
+            
+            Text(issue.isFeatureRequest ? "Feature" : "Bug")
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(issue.isFeatureRequest ? Color.blue : Color.red, in: Capsule())
+                .foregroundColor(.white)
+        }
+    }
+}
+
+
+public struct LabelDisplay: View {
+    
+    let label: GitHubLabel
+    
+    public var body: some View {
+        
+        Text(label.name)
             .font(.caption)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(issue.isFeatureRequest ? Color.blue : Color.red, in: Capsule())
+            .background(label.displayColour, in: Capsule())
             .foregroundColor(.white)
     }
 }
@@ -312,6 +326,17 @@ public struct IssueDetailsView: View {
     public var body: some View {
         
         Form {
+            
+            Section("Labels") {
+                
+                HStack {
+                    
+                    ForEach(issue.displayLabels, id: \.name) { label in
+                        
+                        LabelDisplay(label: label)
+                    }
+                }
+            }
             
             Section("Description") {
                 

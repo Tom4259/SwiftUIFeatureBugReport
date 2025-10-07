@@ -52,6 +52,18 @@ public struct GitHubIssue: Codable, Identifiable {
         return cleaned
     }
     
+    public var nextLabel: GitHubLabel? {
+        
+        labels.first(where: { $0.name != "bug" && $0.name != "feature-request" && $0.name != "user-submitted" })
+            .map({ GitHubLabel(name: $0.name.capitalized.replacingOccurrences(of: "-", with: " "), color: $0.color) })
+    }
+    
+    public var displayLabels: [GitHubLabel] {
+        
+        labels.filter({ $0.name != "user-submitted" })
+            .map({ GitHubLabel(name: $0.name.capitalized.replacingOccurrences(of: "-", with: " "), color: $0.color) })
+    }
+    
     
     var voteCount: Int {
         
@@ -107,6 +119,17 @@ public struct GitHubLabel: Codable {
     
     public let name: String
     public let color: String
+    
+    public var displayColour: Color {
+        
+        Color(hex: color)
+    }
+    
+    init(name: String, color: String) {
+        
+        self.name = name
+        self.color = color
+    }
 }
 
 public struct GitHubUser: Codable {
@@ -169,5 +192,33 @@ public enum GitHubError: LocalizedError {
         case .failedToCreate: return "Failed to create issue"
         case .failedToUpdate: return "Failed to update issue"
         }
+    }
+}
+
+extension Color {
+    
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
