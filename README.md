@@ -25,16 +25,6 @@ https://github.com/yourusername/github-feedback-sdk
 ```
 3. Click **Add Package**
 
-### Manual Installation
-
-Download the source files and add them to your Xcode project:
-- `GitHubCredentials.swift`
-- `GitHubService.swift`
-- `VotingService.swift`
-- `DeviceInfo.swift`
-- `FeedbackFormView.swift`
-- `IssuesListView.swift`
-
 ## Quick Start
 
 ### 1. Create GitHub Repository & Token
