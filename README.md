@@ -21,7 +21,7 @@ A simple, lightweight SwiftUI package for collecting user feedback (bug reports 
 1. In Xcode, go to **File** → **Add Package Dependencies**
 2. Enter the repository URL:
 ```
-https://github.com/yourusername/github-feedback-sdk
+https://github.com/Tom4259/SwiftUIFeatureBugReport
 ```
 3. Click **Add Package**
 
