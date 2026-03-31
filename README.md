@@ -1,6 +1,6 @@
 # GitHub Feedback SDK for SwiftUI
 
-A simple, lightweight SwiftUI package for collecting user feedback (bug reports and feature requests) directly in your iOS app using GitHub Issues as the backend.
+A simple, lightweight SwiftUI package for collecting user feedback (bug reports and feature requests) directly in your iOS or macOS app using GitHub Issues as the backend.
 
 ## Features
 
@@ -181,7 +181,7 @@ User's feedback description
 ---
 **Device Information:**
 Device: iPhone15,2  
-iOS Version: 17.0
+OS Version: 17.0
 App Version: 1.0.0 (1)
 Device ID: ABC-123-DEF
 
@@ -199,7 +199,7 @@ Device ID: ABC-123-DEF
 // Override device info collection
 let customDeviceInfo = """
 Device: \(DeviceInfo.getDeviceModel())
-OS: \(DeviceInfo.getIOSVersion()) 
+OS: \(DeviceInfo.getOSVersion()) 
 App: \(DeviceInfo.getAppVersion())
 Custom Field: \(yourCustomData)
 """
@@ -300,7 +300,7 @@ labels: bug, user-submitted
 
 **Device Info:**
 - Device: 
-- iOS Version: 
+- OS Version: 
 - App Version: 
 
 **Description:**
@@ -348,5 +348,6 @@ print("User has voted on: \(votingService.getVotedIssues())")
 ## Requirements
 
 - iOS 17.0+
+- macOS 14.0+
 - Xcode 15.0+
 - Swift 5.9+

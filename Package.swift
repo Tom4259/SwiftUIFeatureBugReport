@@ -6,7 +6,8 @@ import PackageDescription
 let package = Package(
     name: "SwiftUIFeatureBugReport",
     platforms: [
-        .iOS(.v17)
+        .iOS(.v17),
+        .macOS(.v14)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.

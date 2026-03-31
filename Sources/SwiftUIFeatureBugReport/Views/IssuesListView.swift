@@ -102,7 +102,7 @@ public struct IssuesListView: View {
             .navigationTitle("Feedback")
             .toolbar {
                 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: toolbarTrailingPlacement) {
                     
                     Menu(content: {
                         
@@ -118,12 +118,14 @@ public struct IssuesListView: View {
                     }, label: { Image(systemName: "line.horizontal.3.decrease") })
                 }
                 
+                #if os(iOS)
                 if #available(iOS 26, *) {
                     
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
+                #endif
                 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: toolbarTrailingPlacement) {
                     
                     Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
                 }
@@ -455,7 +457,7 @@ public struct IssueDetailsView: View {
             //only show this if the corerct user
             if ownershipService.ownsIssue(issue.number) {
                 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: toolbarTrailingPlacement) {
                     
                     Menu(content: {
                         
@@ -568,4 +570,12 @@ public struct IssueDetailsView: View {
         
         return displayFormatter.localizedString(for: date, relativeTo: Date())
     }
+}
+
+private var toolbarTrailingPlacement: ToolbarItemPlacement {
+    #if os(iOS)
+    .topBarTrailing
+    #else
+    .primaryAction
+    #endif
 }
