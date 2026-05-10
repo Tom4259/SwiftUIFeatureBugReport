@@ -660,6 +660,8 @@ public struct IssueDetailsView: View {
                     
                     try await gitHubService.addComment(to: issue.number, body: userBody)
                     
+                    UserDefaults.standard.set(comments.count + 1, forKey: "commentsCount-\(issue.number)")
+                    
                     dismiss()
                 }
                 catch {
