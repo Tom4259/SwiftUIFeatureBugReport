@@ -365,6 +365,8 @@ public struct IssueDetailsView: View {
     @State private var showReopenConfirmation = false
     @State private var isClosing = false
     
+    @State private var showReplySheet = false
+    
     public var body: some View {
         
         Form {
@@ -410,33 +412,16 @@ public struct IssueDetailsView: View {
                     
                     ForEach(comments) { comment in
                         
-                        VStack(alignment: .leading, spacing: 8) {
-                            
-                            HStack {
-                                
-                                Image(systemName: "person.circle.fill")
-                                    .foregroundColor(.blue)
-                                
-                                Text("Developer")
-//                                Text(comment.user.login)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                
-                                Spacer()
-                                
-                                Text(formatDate(comment.created_at))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Text(comment.body)
-                                .font(.body)
-                        }
-                        .padding(.vertical, 4)
+                        IssueDetailsView.commentView(comment: comment)
                     }
                 }
                 
-            } header: { Text("Developer Response") }
+            } header: { Text("Comments") }
+            
+            if ownershipService.ownsIssue(issue.number) {
+                
+                Button(action: { showReplySheet = true }, label: { Label("Reply", systemImage: "arrowshape.turn.up.left") })
+            }
             
             if let errorMessage = errorMessage {
                 
@@ -486,6 +471,8 @@ public struct IssueDetailsView: View {
                 ownershipService: ownershipService
             )
         }
+        
+        .sheet(isPresented: $showReplySheet, onDismiss: { Task { await loadComments() } }) { IssueReplyView(issue: issue, gitHubService: gitHubService, comments: comments) }
         
         .alert("Close Feedback", isPresented: $showCloseConfirmation) {
             
@@ -557,7 +544,7 @@ public struct IssueDetailsView: View {
     }
     
     
-    private func formatDate(_ dateString: String) -> String {
+    static func formatDate(_ dateString: String) -> String {
         
         let formatter = ISO8601DateFormatter()
         
@@ -567,5 +554,119 @@ public struct IssueDetailsView: View {
         displayFormatter.unitsStyle = .short
         
         return displayFormatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    @ViewBuilder
+    static func commentView(comment: GitHubComment) -> some View {
+        
+        VStack(alignment: .leading, spacing: 8) {
+            
+            HStack {
+                
+                Image(systemName: "person.circle.fill")
+                    .foregroundColor(comment.isDeveloper ? .blue : .green)
+                
+                Text(comment.isDeveloper ? "Developer" : "User")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text(IssueDetailsView.formatDate(comment.created_at))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Text(comment.trimmedBody)
+                .font(.body)
+        }
+        .padding(.vertical, 4)
+    }
+    
+    public struct IssueReplyView: View {
+        
+        @Environment(\.dismiss) var dismiss
+        
+        let issue: GitHubIssue
+        let gitHubService: GitHubService
+        let comments: [GitHubComment]
+        
+        @State private var replyMessage: String = ""
+        
+        @State private var errorSendingReply = false
+        
+        public var body: some View {
+            
+            NavigationStack {
+                
+                Form {
+                    
+                    Section("Messages") {
+                        
+                        if comments.isEmpty {
+                            
+                            Text("No messages")
+                        }
+                        else {
+                            
+                            ForEach(comments) { comment in
+                                
+                                IssueDetailsView.commentView(comment: comment)
+                            }
+                        }
+                    }
+                    
+                    Section("New Message") {
+                        
+                        TextEditor(text: $replyMessage)
+                            .frame(minHeight: 100)
+                    }
+                }
+                .navigationTitle("New Message")
+                
+                .toolbar {
+                    
+                    ToolbarItem(placement: .topBarLeading) {
+                        
+                        Button(role: .cancel, action: { dismiss() }, label: { Image(systemName: "xmark") })
+                    }
+                    
+                    ToolbarItem(placement: .topBarTrailing) {
+                        
+                        if #available(iOS 26.0, *) {
+                            
+                            Button(role: .confirm, action: { sendReply() }, label: { Text("Reply") })
+                        }
+                        else {
+                            
+                            Button(action: { sendReply() }, label: { Text("Reply") })
+                        }
+                    }
+                }
+                
+                .alert("Error sending reply", isPresented: $errorSendingReply, actions: { Button("Ok") { } }, message: { Text("Please try again later.") })
+            }
+        }
+        
+        private func sendReply() {
+            
+            guard !replyMessage.isEmpty else { return }
+            
+            let userBody: String = "User: " + replyMessage
+            
+            Task {
+                
+                do {
+                    
+                    try await gitHubService.addComment(to: issue.number, body: userBody)
+                    
+                    dismiss()
+                }
+                catch {
+                    
+                    errorSendingReply = true
+                }
+            }
+        }
     }
 }

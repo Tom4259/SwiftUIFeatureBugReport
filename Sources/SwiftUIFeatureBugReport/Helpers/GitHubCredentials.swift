@@ -159,6 +159,16 @@ public struct GitHubComment: Codable, Identifiable {
     public let user: GitHubUser
     public let created_at: String
     public let updated_at: String
+    
+    var isDeveloper: Bool {
+        
+        return !body.hasPrefix("User: ")
+    }
+    
+    var trimmedBody: String {
+        
+        return isDeveloper ? body : String(body.trimmingPrefix("User: "))
+    }
 }
 
 struct CreateIssueRequest: Codable {
