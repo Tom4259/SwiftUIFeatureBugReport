@@ -12,6 +12,7 @@ A simple, lightweight SwiftUI package for collecting user feedback (bug reports 
 ✅ **Clean UI Components** - Ready-to-use SwiftUI views  
 ✅ **Private Repository Support** - Keep feedback internal  
 ✅ **Real-time Updates** - Live vote counts and issue lists  
+✅ **User Replies** - Optionally allow users to reply/comment to their own issue 
 
 
 ## Installation
@@ -62,7 +63,7 @@ struct ContentView: View {
                     }
                 
                 // Feedback system
-                IssuesListView(gitHubService: gitHubService)
+                IssuesListView(gitHubService: gitHubService, allowUserReplies: true)
                     .tabItem {
                         Label("Feedback", systemImage: "exclamationmark.bubble")
                     }

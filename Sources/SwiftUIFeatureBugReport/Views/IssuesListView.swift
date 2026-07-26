@@ -22,9 +22,9 @@ public struct IssuesListView: View {
     @State private var errorMessage: String?
     @State private var showErrorAlert = false
     
-    public init(credentials: GitHubCredentials) {
+    public init(credentials: GitHubCredentials, allowUserReplies: Bool = false) {
         
-        self.gitHubService = GitHubService(credentials: credentials)
+        self.gitHubService = GitHubService(credentials: credentials, allowUserReplies: allowUserReplies)
     }
     
     var filteredIssues: [GitHubIssue] {
@@ -418,7 +418,7 @@ public struct IssueDetailsView: View {
                 
             } header: { Text("Comments") }
             
-            if ownershipService.ownsIssue(issue.number) {
+            if ownershipService.ownsIssue(issue.number) && gitHubService.allowUserReplies {
                 
                 Button(action: { showReplySheet = true }, label: { Label("Reply", systemImage: "arrowshape.turn.up.left") })
             }

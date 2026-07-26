@@ -15,14 +15,17 @@ import SwiftUI
     private let repo: String
     private let token: String
     
+    public let allowUserReplies: Bool
+    
     public var hasLoadedInitialIssues: Bool = false
     public var hasLoadedInitialClosedIssues: Bool = false
     
-    public init(credentials: GitHubCredentials) {
+    public init(credentials: GitHubCredentials, allowUserReplies: Bool = false) {
         
         self.owner = credentials.owner
         self.repo = credentials.repo
         self.token = credentials.token
+        self.allowUserReplies = allowUserReplies
     }
     
     private var headers: [String: String] {
