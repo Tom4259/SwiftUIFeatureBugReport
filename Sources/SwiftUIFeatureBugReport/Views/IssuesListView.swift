@@ -628,14 +628,14 @@ public struct IssueDetailsView: View {
                 
                 .toolbar {
                     
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: toolbarLeadingPlacement) {
                         
                         Button(role: .cancel, action: { dismiss() }, label: { Image(systemName: "xmark") })
                     }
                     
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: toolbarTrailingPlacement) {
                         
-                        if #available(iOS 26.0, *) {
+                        if #available(iOS 26.0, macOS 26.0, *) {
                             
                             Button(role: .confirm, action: { sendReply() }, label: { Text("Reply") })
                         }
@@ -675,10 +675,20 @@ public struct IssueDetailsView: View {
     }
 }
 
+private var toolbarLeadingPlacement: ToolbarItemPlacement {
+    
+#if os(iOS)
+    .topBarLeading
+#else
+    .secondaryAction
+#endif
+}
+
 private var toolbarTrailingPlacement: ToolbarItemPlacement {
-    #if os(iOS)
+    
+#if os(iOS)
     .topBarTrailing
-    #else
+#else
     .primaryAction
-    #endif
+#endif
 }
