@@ -86,7 +86,9 @@ public struct FeedbackFormView: View {
                     
                     TextField("Email", text: $contactEmail)
                         .textContentType(.emailAddress)
+                        #if os(iOS)
                         .textInputAutocapitalization(.never)
+                        #endif
                     
                 }, header: { Text("Contact Email (optional)") },
                         footer: { Text("To contact you for more details") })
@@ -117,13 +119,22 @@ public struct FeedbackFormView: View {
                 }
             }
             .navigationTitle("Feedback")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarLeading) {
                     
                     Button("Cancel") { dismiss() }
                 }
+                #else
+                ToolbarItem(placement: .cancellationAction) {
+                    
+                    Button("Cancel") { dismiss() }
+                }
+                #endif
             }
             
             .alert("Success!", isPresented: $showSuccess) {
