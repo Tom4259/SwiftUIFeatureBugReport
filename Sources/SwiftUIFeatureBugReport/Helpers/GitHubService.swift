@@ -15,14 +15,17 @@ import SwiftUI
     private let repo: String
     private let token: String
     
+    public let allowUserReplies: Bool
+    
     public var hasLoadedInitialIssues: Bool = false
     public var hasLoadedInitialClosedIssues: Bool = false
     
-    public init(credentials: GitHubCredentials) {
+    public init(credentials: GitHubCredentials, allowUserReplies: Bool = false) {
         
         self.owner = credentials.owner
         self.repo = credentials.repo
         self.token = credentials.token
+        self.allowUserReplies = allowUserReplies
     }
     
     private var headers: [String: String] {
@@ -321,6 +324,35 @@ import SwiftUI
     
     
     // MARK: - Comments
+    
+    //call this method to check if there are any new comments that the user hasn't seen on their issues, and a notification will be sent
+    public func checkForNewComments() async throws -> [GitHubComment] {
+        
+        let ownedIssues = IssueOwnershipService().getOwnedIssues()
+        
+        var newComments: [GitHubComment] = []
+        
+        for issueNo in ownedIssues {
+            
+            let key = "commentsCount-\(issueNo)"
+            
+            let previousCommentCount = UserDefaults.standard.integer(forKey: key)
+            
+            let comments = try await getComments(for: issueNo)
+            
+            
+            if comments.count > previousCommentCount {
+                
+                let new = comments.suffix(from: previousCommentCount)
+                
+                newComments.append(contentsOf: new)
+                
+                UserDefaults.standard.set(comments.count, forKey: key)
+            }
+        }
+        
+        return newComments
+    }
 
     // Get all comments for a specific issue
     public func getComments(for issueNumber: Int) async throws -> [GitHubComment] {
