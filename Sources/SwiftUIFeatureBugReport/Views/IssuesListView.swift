@@ -22,9 +22,17 @@ public struct IssuesListView: View {
     @State private var errorMessage: String?
     @State private var showErrorAlert = false
     
-    public init(credentials: GitHubCredentials, allowUserReplies: Bool = false) {
-        
+    /// Whether the view brings its own `NavigationStack`.
+    private let embedsNavigationStack: Bool
+
+    /// Leave `embedsNavigationStack` on when presenting this somewhere with no navigation of its own -
+    /// a sheet, or a split view's detail column. Turn it off when pushing this onto a stack the host
+    /// already owns: a stack nested inside another stack's destination makes SwiftUI compare the two
+    /// paths against each other, and it traps when their element types differ.
+    public init(credentials: GitHubCredentials, allowUserReplies: Bool = false, embedsNavigationStack: Bool = true) {
+
         self.gitHubService = GitHubService(credentials: credentials, allowUserReplies: allowUserReplies)
+        self.embedsNavigationStack = embedsNavigationStack
     }
     
     var filteredIssues: [GitHubIssue] {
@@ -47,105 +55,114 @@ public struct IssuesListView: View {
     }
     
     public var body: some View {
-        
-        NavigationStack {
-            
-            Form {
-                
-                Section {
-                    
-                    Picker("Filter", selection: $selectedFilter) {
-                        
-                        ForEach(IssueType.allCases, id: \.self) { type in
-                            
-                            Text(type.rawValue)
-                        }
+
+        if embedsNavigationStack {
+
+            NavigationStack { issuesList }
+        }
+        else {
+
+            issuesList
+        }
+    }
+
+    @ViewBuilder private var issuesList: some View {
+
+        Form {
+
+            Section {
+
+                Picker("Filter", selection: $selectedFilter) {
+
+                    ForEach(IssueType.allCases, id: \.self) { type in
+
+                        Text(type.rawValue)
                     }
-                    .pickerStyle(.segmented)
                 }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                    
-                if gitHubService.isLoading {
-                    
-                    ProgressView("Loading...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    
+                .pickerStyle(.segmented)
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
+            if gitHubService.isLoading {
+
+                ProgressView("Loading...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            }
+            else {
+
+                Section {
+
+                    NavigationLink(destination: { CompletedIssuesView(gitHubService: gitHubService, ownershipService: ownershipService, filter: selectedFilter) },
+                                   label: { Label("View Completed", systemImage: "checkmark.circle") })
+                }
+
+                if filteredIssues.isEmpty {
+
+                    emptyStateView
                 }
                 else {
-                    
-                    Section {
-                        
-                        NavigationLink(destination: { CompletedIssuesView(gitHubService: gitHubService, ownershipService: ownershipService, filter: selectedFilter) },
-                                       label: { Label("View Completed", systemImage: "checkmark.circle") })
-                    }
-                    
-                    if filteredIssues.isEmpty {
-                        
-                        emptyStateView
-                    }
-                    else {
-                        
-                        List(sortedIssues) { issue in
-                            
-                            IssueRowView(service: $gitHubService,
-                                         ownershipService: $ownershipService,
-                                         selectedFilter: $selectedFilter,
-                                         issue: issue,
-                                         isVoting: votingInProgress.contains(issue.number),
-                                         hasVoted: votingService.hasVoted(for: issue.number),
-                                         onUpvote: { await upvoteIssue(issue) })
-                        }
+
+                    List(sortedIssues) { issue in
+
+                        IssueRowView(service: $gitHubService,
+                                     ownershipService: $ownershipService,
+                                     selectedFilter: $selectedFilter,
+                                     issue: issue,
+                                     isVoting: votingInProgress.contains(issue.number),
+                                     hasVoted: votingService.hasVoted(for: issue.number),
+                                     onUpvote: { await upvoteIssue(issue) })
                     }
                 }
             }
-            .navigationTitle("Feedback")
-            .toolbar {
-                
-                ToolbarItem(placement: toolbarTrailingPlacement) {
-                    
-                    Menu(content: {
-                        
-                        Picker(selection: $selectedSort, content: {
-                            
-                            ForEach(SortType.allCases, id: \.self) {
-                                
-                                Text($0.localised)
-                            }
-                            
-                        }, label: { })
-                        
-                    }, label: { Image(systemName: "line.horizontal.3.decrease") })
-                }
-                
-                #if os(iOS)
-                if #available(iOS 26, *) {
-                    
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
-                #endif
-                
-                ToolbarItem(placement: toolbarTrailingPlacement) {
-                    
-                    Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
-                }
-            }
-            
-            .task {
-                
-                guard !gitHubService.hasLoadedInitialIssues else { return }
-                
-                await gitHubService.loadIssues()
-                
-                gitHubService.hasLoadedInitialIssues = true
-            }
-            
-            .refreshable { await gitHubService.loadIssues() }
-            
-            .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter, ownershipService: ownershipService) }
-            
-            .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })
         }
+        .navigationTitle("Feedback")
+        .toolbar {
+
+            ToolbarItem(placement: toolbarTrailingPlacement) {
+
+                Menu(content: {
+
+                    Picker(selection: $selectedSort, content: {
+
+                        ForEach(SortType.allCases, id: \.self) {
+
+                            Text($0.localised)
+                        }
+
+                    }, label: { })
+
+                }, label: { Image(systemName: "line.horizontal.3.decrease") })
+            }
+
+            #if os(iOS)
+            if #available(iOS 26, *) {
+
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            #endif
+
+            ToolbarItem(placement: toolbarTrailingPlacement) {
+
+                Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
+            }
+        }
+
+        .task {
+
+            guard !gitHubService.hasLoadedInitialIssues else { return }
+
+            await gitHubService.loadIssues()
+
+            gitHubService.hasLoadedInitialIssues = true
+        }
+
+        .refreshable { await gitHubService.loadIssues() }
+
+        .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter, ownershipService: ownershipService) }
+
+        .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })
     }
     
     private var emptyStateView: some View {
