@@ -9,26 +9,19 @@ import Foundation
 
 public struct DeviceInfo {
 
-    private static let deviceIdentifierKey = "com.swiftuifeaturebugreport.device.identifier"
-    
-    /// Generate a formatted device information report for bug reports
-    public static func generateReport() -> String {
+    /// The structured environment attached to every request.
+    ///
+    /// Replaces v1's `generateReport()` formatted blob - that shape only existed because a GitHub
+    /// issue has a single text field.
+    public static func current() -> DeviceEnvironment {
 
-        let app = Bundle.main
-
-        let deviceModel = getDeviceModel()
-        let osVersion = getOSVersion()
-        let platformName = getPlatformName()
-        let appVersion = app.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
-        let buildNumber = app.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
-
-        return """
-        Device: \(deviceModel)
-        \(platformName) Version: \(osVersion)
-        App Version: \(appVersion) (\(buildNumber))
-        """
+        DeviceEnvironment(appVersion: getAppVersion(),
+                          buildNumber: getBuildNumber(),
+                          osVersion: getOSVersion(),
+                          deviceModel: getDeviceModel(),
+                          platform: getPlatformName())
     }
-    
+
     /// Get individual device information components
     public static func getDeviceModel() -> String {
         
@@ -63,27 +56,7 @@ public struct DeviceInfo {
         return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
     }
 
-    @available(*, deprecated, message: "Use getOSVersion()")
-    public static func getIOSVersion() -> String {
-
-        getOSVersion()
-    }
-
-    public static func getDeviceID() -> String {
-
-        let defaults = UserDefaults.standard
-
-        if let existingID = defaults.string(forKey: deviceIdentifierKey) {
-            return existingID
-        }
-
-        let newID = UUID().uuidString
-        defaults.set(newID, forKey: deviceIdentifierKey)
-
-        return newID
-    }
-
-    private static func getPlatformName() -> String {
+    public static func getPlatformName() -> String {
         #if targetEnvironment(macCatalyst)
         "macCatalyst"
         #elseif os(iOS)

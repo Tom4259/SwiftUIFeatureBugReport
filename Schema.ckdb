@@ -1,0 +1,163 @@
+/*
+ * GENERATED FILE - exported from CloudKit with `cktool export-schema`. Do not hand-edit.
+ *
+ * To change the schema: edit it here, run `validate-schema`, `import-schema`, then re-export over
+ * this file so the committed version matches what the server actually stores.
+ *
+ * Development and Production are separate. An import only touches Development - deploy to Production
+ * from the CloudKit Dashboard ("Deploy Schema Changes") or your App Store build will not see it.
+ *
+ * Production record types and fields are permanent once deployed: you can add later, never remove.
+ *
+ * The reasoning behind the shape of this schema - why no BOOLEAN fields, why Comment and DevComment
+ * are separate record types, why Report is world-readable but Follow is not, why only `title` is
+ * SEARCHABLE - is in README.md under "Index checklist" and "Privacy".
+ */
+
+DEFINE SCHEMA
+
+    CREATE ROLE dev;
+
+    RECORD TYPE Activity (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        kind            STRING QUERYABLE,
+        message         STRING,
+        recipientID     STRING QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        requestTitle    STRING,
+        GRANT READ TO "_world",
+        GRANT READ, CREATE, WRITE TO dev
+    );
+
+    RECORD TYPE Comment (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        body            STRING,
+        creatorID       STRING QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        requestCreator  STRING QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DevComment (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        body            STRING,
+        creatorID       STRING QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        requestCreator  STRING QUERYABLE,
+        GRANT READ TO "_world",
+        GRANT READ, CREATE, WRITE TO dev
+    );
+
+    RECORD TYPE Follow (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO dev
+    );
+
+    RECORD TYPE Report (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        category        STRING QUERYABLE,
+        reason          STRING,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE Request (
+        "___createTime"   TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"    REFERENCE QUERYABLE,
+        "___etag"         STRING,
+        "___modTime"      TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy"   REFERENCE QUERYABLE,
+        "___recordID"     REFERENCE QUERYABLE,
+        appVersion        STRING QUERYABLE,
+        body              STRING,
+        buildNumber       STRING QUERYABLE,
+        creatorID         STRING QUERYABLE,
+        deviceModel       STRING QUERYABLE,
+        imageState        STRING QUERYABLE,
+        images            LIST<ASSET>,
+        labels            LIST<STRING> QUERYABLE,
+        lastActivityAt    TIMESTAMP QUERYABLE SORTABLE,
+        moderation        STRING QUERYABLE,
+        osVersion         STRING QUERYABLE,
+        platform          STRING QUERYABLE,
+        resolvedInVersion STRING QUERYABLE,
+        status            STRING QUERYABLE,
+        title             STRING QUERYABLE SEARCHABLE,
+        type              STRING QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE RequestMetadata (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        payload         STRING,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE Users (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        roles           LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Vote (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
