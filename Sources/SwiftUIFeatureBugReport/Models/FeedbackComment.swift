@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Developer authorship comes from the **record type**, never a field. `DevComment` is the only
 /// record type with `dev: CREATE`, so a user cannot write one - which is what makes the badge
-/// unspoofable. (v1 used a `"User: "` body prefix, which anyone could forge.)
+/// unspoofable. A marker inside the body would not be: anyone can type one.
 public struct FeedbackComment: Identifiable, Sendable, Hashable {
 
     public let id: CKRecord.ID

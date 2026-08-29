@@ -5,8 +5,10 @@
 
 import Foundation
 
-/// The structured replacement for v1's formatted device-info blob. That was a single string only
-/// because a GitHub issue has one text field; CloudKit has real fields, so these are real fields.
+/// The device and build a request came from, as five real fields rather than one formatted string.
+///
+/// Separate fields because each one is queryable: the portal filters the queue by `appVersion`, which
+/// a blob of text cannot answer.
 ///
 /// All five are written onto `Request` and are therefore world-readable. Deliberate: device model,
 /// OS and app version appear on the face of every public issue tracker and are not sensitive. Only

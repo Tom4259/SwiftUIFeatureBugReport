@@ -9,9 +9,9 @@ import Observation
 
 /// Following separates "tell me when this changes" from "I want this built".
 ///
-/// Voting used to be the only way to hear about a request, which forced anyone tracking a bug they
-/// had not personally asked for to inflate its tally to do so. Voting still follows automatically -
-/// that is the common case - but the two can now come apart.
+/// Kept separate so that following costs nothing: if a vote were the only way to hear about a
+/// request, anyone tracking a bug they had not personally asked for would have to inflate its tally
+/// to do it. Voting follows automatically - that is the common case - but the two can come apart.
 @Observable @MainActor public final class FollowService {
 
     public private(set) var myFollows: Set<CKRecord.ID> = []

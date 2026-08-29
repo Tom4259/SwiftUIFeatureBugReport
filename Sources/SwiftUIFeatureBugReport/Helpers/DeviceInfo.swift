@@ -10,9 +10,6 @@ import Foundation
 public struct DeviceInfo {
 
     /// The structured environment attached to every request.
-    ///
-    /// Replaces v1's `generateReport()` formatted blob - that shape only existed because a GitHub
-    /// issue has a single text field.
     public static func current() -> DeviceEnvironment {
 
         DeviceEnvironment(appVersion: getAppVersion(),

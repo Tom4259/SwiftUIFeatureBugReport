@@ -20,8 +20,9 @@ import UserNotifications
 
     /// The whole of the local unread bookkeeping: one date.
     ///
-    /// v1 stored a comment count per issue, which meant a reinstall marked every thread unread and a
-    /// deleted issue left a stale key behind forever.
+    /// Deliberately not a per-request count. Counts kept locally go stale in both directions - a
+    /// reinstall marks every thread unread, and a deleted request leaves a key behind forever - while
+    /// a single high-water mark survives both.
     private let lastSeenKey = "com.swiftuifeaturebugreport.lastSeenActivityDate"
 
     public var lastSeenActivityDate: Date {

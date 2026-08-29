@@ -14,8 +14,9 @@ import Observation
     /// Derived from the same query as `tallies`, by filtering on creator.
     ///
     /// **There is no local persistence of vote state at all** - no `UserDefaults`, no `@AppStorage`,
-    /// no runtime bookkeeping beyond this set. v1 kept voted issue numbers on the device, which meant
-    /// a reinstall handed the user a second vote and a second device handed them a third.
+    /// no runtime bookkeeping beyond this set. Vote state held on the device is a second vote waiting
+    /// to happen: a reinstall would hand the user another, and a second device another still. The
+    /// server is the only record of who voted.
     public private(set) var myVotes: Set<CKRecord.ID> = []
 
     public private(set) var isLoading = false
