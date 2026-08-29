@@ -45,36 +45,17 @@ public struct FeedbackConfiguration: Sendable {
     /// attached before this was turned off still display.
     public let allowImageAttachments: Bool
 
-    /// Which CloudKit environment this build talks to. Displayed in the developer portal.
-    ///
-    /// Purely a label - it does not change which environment CloudKit uses, because nothing in the app
-    /// can. Set it to whatever your build actually targets so the portal cannot quietly show you
-    /// Development data while you believe you are moderating live feedback.
-    ///
-    /// Override the default if you force `com.apple.developer.icloud-container-environment`:
-    ///
-    /// ```swift
-    /// #if PRODUCTION_CLOUDKIT
-    /// environment: .production
-    /// #else
-    /// environment: .development
-    /// #endif
-    /// ```
-    public let environment: CloudKitEnvironment
-
     public init(containerIdentifier: String,
                 developerUserRecordIDs: [String] = [],
                 reportThreshold: Int = 3,
                 allowComments: Bool = true,
-                allowImageAttachments: Bool = true,
-                environment: CloudKitEnvironment = .defaultForBuild) {
+                allowImageAttachments: Bool = true) {
 
         self.containerIdentifier = containerIdentifier
         self.developerUserRecordIDs = developerUserRecordIDs
         self.reportThreshold = reportThreshold
         self.allowComments = allowComments
         self.allowImageAttachments = allowImageAttachments
-        self.environment = environment
     }
 
 }

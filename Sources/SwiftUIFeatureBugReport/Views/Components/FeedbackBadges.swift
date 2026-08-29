@@ -38,6 +38,27 @@ struct StatusBadge: View {
 }
 
 
+/// Marks a request that has been moderated off the board.
+///
+/// Only ever rendered for a developer - the visibility rule filters these out for everyone else, so
+/// this is the marker that tells the person who hid it that it *is* hidden, and from whom.
+struct HiddenBadge: View {
+
+    var body: some View {
+
+        Label("Hidden", systemImage: "eye.slash")
+            .font(.caption2)
+            .labelStyle(.titleAndIcon)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.15), in: Capsule())
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(Text("Hidden from users"))
+            .help("Hidden from users. You can still see it because you are a developer.")
+    }
+}
+
+
 struct LabelChip: View {
 
     let name: String
@@ -117,45 +138,6 @@ struct ResolvedVersionBadge: View {
         }
         .font(.caption2)
         .foregroundStyle(.green)
-    }
-}
-
-
-/// Warns that the portal is pointed at the Development database.
-///
-/// Only shown for Development, because that is the only case that needs saying: an empty Production
-/// board and an empty Development board look identical, and the difference between "nobody has
-/// reported anything" and "you are looking at the wrong database" is worth a coloured banner.
-struct EnvironmentBanner: View {
-
-    let containerIdentifier: String
-
-    var body: some View {
-
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-
-            Image(systemName: CloudKitEnvironment.development.symbolName)
-                .foregroundStyle(CloudKitEnvironment.development.tint)
-
-            VStack(alignment: .leading, spacing: 2) {
-
-                Text(CloudKitEnvironment.development.localised)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(CloudKitEnvironment.development.tint)
-
-                Text(containerIdentifier)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Text("Feedback from the App Store lives in Production and will not appear here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
     }
 }
 

@@ -45,7 +45,6 @@ enum FieldKey {
 
     // Vote / Report / Comment / Activity / RequestMetadata
     static let request = "request"
-    static let reason = "reason"
     static let category = "category"
     static let requestCreator = "requestCreator"
     static let recipientID = "recipientID"

@@ -92,7 +92,7 @@ public struct UpdatesView: View {
                 }
             }
         }
-        .navigationTitle("Updates")
+        .ownedNavigationTitle("Updates", ownsStack: embedsNavigationStack)
         .feedbackRefreshable { await store.activity.feed() }
         .task {
 

@@ -90,7 +90,7 @@ public struct MyDataView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("My requests")
+        .ownedNavigationTitle("My requests", ownsStack: embedsNavigationStack)
         .inlineNavigationTitle()
         .task { await store.accountData.loadCounts() }
 

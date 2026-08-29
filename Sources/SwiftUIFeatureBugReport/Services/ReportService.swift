@@ -14,10 +14,6 @@ import Observation
     /// Category breakdown per request, for the portal's reported queue.
     public private(set) var reportCategories: [CKRecord.ID: [ReportCategory: Int]] = [:]
 
-    /// The free text people typed when reporting. Collected, so it has to be readable somewhere -
-    /// otherwise the form is asking users to explain themselves into a void.
-    public private(set) var reportReasons: [CKRecord.ID: [String]] = [:]
-
     /// Requests this user reported. Kept locally as well as on the server so the reporter stops
     /// seeing the content the instant they report it, without waiting for a round trip.
     public private(set) var myReports: Set<CKRecord.ID> = []
@@ -42,15 +38,12 @@ import Observation
 
         reportCounts = [:]
         reportCategories = [:]
-        reportReasons = [:]
         myReports = []
     }
 
     public func reportCount(for requestID: CKRecord.ID) -> Int { reportCounts[requestID] ?? 0 }
 
     public func categories(for requestID: CKRecord.ID) -> [ReportCategory: Int] { reportCategories[requestID] ?? [:] }
-
-    public func reasons(for requestID: CKRecord.ID) -> [String] { reportReasons[requestID] ?? [] }
 
     public func hasReported(_ requestID: CKRecord.ID) -> Bool { myReports.contains(requestID) }
 
@@ -59,7 +52,6 @@ import Observation
 
         var counts: [CKRecord.ID: Int] = [:]
         var categories: [CKRecord.ID: [ReportCategory: Int]] = [:]
-        var reasons: [CKRecord.ID: [String]] = [:]
         var mine: Set<CKRecord.ID> = []
 
         let query = CKQuery(recordType: RecordType.report, predicate: NSPredicate(value: true))
@@ -75,12 +67,12 @@ import Observation
                 if let cursor {
 
                     page = try await database.records(continuingMatchFrom: cursor,
-                                                      desiredKeys: [FieldKey.request, FieldKey.category, FieldKey.reason])
+                                                      desiredKeys: [FieldKey.request, FieldKey.category])
                 }
                 else {
 
                     page = try await database.records(matching: query,
-                                                      desiredKeys: [FieldKey.request, FieldKey.category, FieldKey.reason])
+                                                      desiredKeys: [FieldKey.request, FieldKey.category])
                 }
 
                 for (_, result) in page.matchResults {
@@ -93,12 +85,6 @@ import Observation
                     let category = ReportCategory(rawValue: record[FieldKey.category] as? String ?? "") ?? .other
 
                     categories[reference.recordID, default: [:]][category, default: 0] += 1
-
-                    if let reason = record[FieldKey.reason] as? String,
-                       !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-
-                        reasons[reference.recordID, default: []].append(reason)
-                    }
 
                     if container.isCurrentUser(record.creatorUserRecordID) { mine.insert(reference.recordID) }
                 }
@@ -114,11 +100,13 @@ import Observation
 
         reportCounts = counts
         reportCategories = categories
-        reportReasons = reasons
         myReports.formUnion(mine)
     }
 
-    public func report(_ requestID: CKRecord.ID, category: ReportCategory, reason: String) async throws {
+    /// Category only. Free text was dropped deliberately: `Report` is world-readable so every client
+    /// can compute the threshold, and CloudKit has no per-field permissions - so a "detail" box would
+    /// have collected private-feeling prose into a public record. The category is what triage needs.
+    public func report(_ requestID: CKRecord.ID, category: ReportCategory) async throws {
 
         guard let me = container.currentUserRecordID else { throw FeedbackError.notSignedIn }
 
@@ -131,7 +119,6 @@ import Observation
 
         record[FieldKey.request] = CKRecord.Reference(recordID: requestID, action: .deleteSelf)
         record[FieldKey.category] = category.rawValue
-        record[FieldKey.reason] = reason
 
         do {
 
@@ -173,13 +160,28 @@ import Observation
     /// the moment the next client refreshes.
     public func isVisible(_ request: FeedbackRequest, threshold: Int) -> Bool {
 
-        if blockedAuthors.contains(request.creatorID) { return false }
+        Self.isVisible(moderation: request.moderation,
+                       isBlocked: blockedAuthors.contains(request.creatorID),
+                       hasReported: hasReported(request.id),
+                       reportCount: reportCount(for: request.id),
+                       threshold: threshold)
+    }
 
-        switch request.moderation {
+    /// The rule itself, free of any state, so it can be exercised directly. Every branch below is a
+    /// decision someone has to be able to check without standing up a CloudKit container.
+    nonisolated static func isVisible(moderation: ModerationState,
+                                      isBlocked: Bool,
+                                      hasReported: Bool,
+                                      reportCount: Int,
+                                      threshold: Int) -> Bool {
+
+        if isBlocked { return false }
+
+        switch moderation {
 
         case .hidden: return false
         case .approved: return true
-        case .visible: return !hasReported(request.id) && reportCount(for: request.id) < threshold
+        case .visible: return !hasReported && reportCount < threshold
         }
     }
 }

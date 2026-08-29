@@ -26,6 +26,10 @@ public struct FeedbackFormView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var votedFromSearch: FeedbackRequest?
 
+    /// Defaults to on - the developer asked for this context, and it is only ever attached to a
+    /// private, developer-only record. Off by choice, never by default.
+    @State private var includeMetadata = true
+
     private let metadata: [String: String]
     private let embedsNavigationStack: Bool
 
@@ -126,11 +130,12 @@ public struct FeedbackFormView: View {
 
                 NavigationLink {
 
-                    MetadataDisclosureView(environment: DeviceInfo.current(), metadata: metadata)
+                    MetadataDisclosureView(includeMetadata: $includeMetadata, environment: DeviceInfo.current(), metadata: metadata)
 
-                } label: { Label("What gets sent with this", systemImage: "info.circle") }
+                } label: { Label("What gets included?", systemImage: "info.circle") }
             }
 
+#if !os(macOS)
             Section {
 
                 Button(action: { submit() }) {
@@ -149,6 +154,7 @@ public struct FeedbackFormView: View {
                 }
                 .disabled(!canSubmit)
             }
+#endif
 
             if let error {
 
@@ -156,7 +162,7 @@ public struct FeedbackFormView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("New feedback")
+        .navigationTitle("New Feedback")
         .inlineNavigationTitle()
         .toolbar {
 
@@ -164,6 +170,25 @@ public struct FeedbackFormView: View {
 
                 Button("Cancel", role: .cancel) { dismiss() }
             }
+
+#if os(macOS)
+            // Native sheet convention: primary action bottom-right, not a full-width row inside the form.
+            ToolbarItem(placement: .confirmationAction) {
+
+                Button(action: { submit() }) {
+
+                    if isSubmitting {
+
+                        ProgressView().controlSize(.small)
+                    }
+                    else {
+
+                        Text("Submit")
+                    }
+                }
+                .disabled(!canSubmit)
+            }
+#endif
         }
         .onDisappear { searchTask?.cancel() }
 
@@ -171,7 +196,7 @@ public struct FeedbackFormView: View {
 
             Button("OK") { dismiss() }
 
-        } message: { Text("Your feedback has been posted.") }
+        } message: { Text("Your feedback has been submitted.") }
 
         .alert("Voted", isPresented: .constant(votedFromSearch != nil)) {
 
@@ -300,7 +325,7 @@ public struct FeedbackFormView: View {
                                            body: body_.trimmingCharacters(in: .whitespacesAndNewlines),
                                            type: type,
                                            imageData: imageData,
-                                           metadata: metadata)
+                                           metadata: includeMetadata ? metadata : [:])
 
                 showSuccess = true
             }

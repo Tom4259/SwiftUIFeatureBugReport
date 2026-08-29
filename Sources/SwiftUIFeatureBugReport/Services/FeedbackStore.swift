@@ -118,15 +118,35 @@ import Observation
 
         reports.reset()
 
+        // The follow records are gone from the server; without this the cached set keeps every row
+        // showing as followed until the next launch.
+        follows.reset()
+
         await load()
     }
 
     // MARK: - Derived rules
 
-    /// The board after moderation, blocking and the report threshold have been applied.
+    /// What a **user** may see, after moderation, blocking and the report threshold.
+    ///
+    /// This is the public-facing rule, and the roadmap uses it too: a roadmap is a curated "here is
+    /// what is coming" list, so a hidden request has no business on it even for the person who hid it.
+    /// The board is the one place that relaxes it - see `boardRequests`.
     public var visibleRequests: [FeedbackRequest] {
 
-        requests.requests.filter { reports.isVisible($0, threshold: configuration.reportThreshold) }
+        requests.requests.filter { isVisible($0) }
+    }
+
+    /// What the board shows. Identical to `visibleRequests` for a user.
+    ///
+    /// A developer also sees what *they* have hidden, marked with a badge, so hiding stays reversible
+    /// from the screen they actually use rather than only from the portal. Their local author blocks
+    /// still apply - those are a personal choice, not a moderation one.
+    public var boardRequests: [FeedbackRequest] {
+
+        guard container.isDeveloper else { return visibleRequests }
+
+        return requests.requests.filter { !reports.isBlocked($0.creatorID) }
     }
 
     public func isVisible(_ request: FeedbackRequest) -> Bool {
@@ -148,11 +168,19 @@ import Observation
     /// every request the instant it is created.
     public func canEdit(_ request: FeedbackRequest) -> Bool {
 
-        guard isMine(request), request.status != .complete else { return false }
+        Self.canEdit(isMine: isMine(request),
+                     status: request.status,
+                     tally: votes.tally(for: request.id),
+                     hasVoted: votes.hasVoted(on: request.id))
+    }
 
-        let othersVotes = votes.tally(for: request.id) - (votes.hasVoted(on: request.id) ? 1 : 0)
+    /// The rule itself, free of any state. The subtraction is the whole point and is easy to get
+    /// wrong, so it is worth being able to test on its own.
+    nonisolated static func canEdit(isMine: Bool, status: RequestStatus, tally: Int, hasVoted: Bool) -> Bool {
 
-        return othersVotes <= 0
+        guard isMine, status != .complete else { return false }
+
+        return tally - (hasVoted ? 1 : 0) <= 0
     }
 
     /// Voting also follows, so the common case needs no second tap. Withdrawing a vote deliberately

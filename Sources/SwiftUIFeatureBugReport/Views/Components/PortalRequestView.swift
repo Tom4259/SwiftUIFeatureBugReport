@@ -19,6 +19,7 @@ struct PortalRequestView: View {
     @State private var resolvedVersion = ""
     @State private var isLoadingDetail = true
 
+    @State private var showingInfo = false
     @State private var showingDelete = false
     @State private var showingBlockAuthor = false
     @State private var showingDeleteAuthorData = false
@@ -59,28 +60,29 @@ struct PortalRequestView: View {
                 LabeledContent("Reported as", value: breakdown)
             }
 
-            ForEach(Array(store.reports.reasons(for: request.id).enumerated()), id: \.offset) { _, reason in
-
-                VStack(alignment: .leading, spacing: 2) {
-
-                    Text("Reason given")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-
-                    Text(reason)
-                        .font(.footnote)
-                }
-            }
-
             } header: { Text(request.title) }
 
             Section {
 
+                #if os(macOS)
+                // A sheet, not a push. This view sits in a pane of the host's own split view, and the
+                // push was escaping the pane's stack to replace the entire host detail column - queue
+                // list and all - leaving no way back to the portal.
+                Button(action: { showingInfo = true }) {
+
+                    // Full width, so the whole row stays the target the pushed link used to be.
+                    Label("Request info", systemImage: "info.circle")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                #else
                 NavigationLink {
 
                     RequestInfoView(request: request, metadata: metadata)
 
                 } label: { Label("Request info", systemImage: "info.circle") }
+                #endif
             }
 
             statusSection
@@ -108,9 +110,16 @@ struct PortalRequestView: View {
                                label: { Label("Clear reports", systemImage: "checkmark.shield") })
                             .disabled(request.moderation == .approved)
 
-                        Button(action: { Task { await store.moderation.hide(request); await reloadDetail() } },
-                               label: { Label("Hide from everyone", systemImage: "eye.slash") })
-                            .disabled(request.moderation == .hidden)
+                        if request.moderation == .hidden {
+
+                            Button(action: { Task { await store.moderation.unhide(request); await reloadDetail() } },
+                                   label: { Label("Unhide", systemImage: "eye") })
+                        }
+                        else {
+
+                            Button(action: { Task { await store.moderation.hide(request); await reloadDetail() } },
+                                   label: { Label("Hide from everyone", systemImage: "eye.slash") })
+                        }
                     }
 
                     Section("Danger zone") {
@@ -134,6 +143,25 @@ struct PortalRequestView: View {
                                       showingBlockAuthor: $showingBlockAuthor,
                                       showingDeleteAuthorData: $showingDeleteAuthorData))
         .task { await reloadDetail() }
+
+        #if os(macOS)
+        .sheet(isPresented: $showingInfo) {
+
+            NavigationStack {
+
+                RequestInfoView(request: request, metadata: metadata)
+                    .navigationTitle("Request info")
+                    .toolbar {
+
+                        ToolbarItem(placement: .confirmationAction) {
+
+                            Button("Done") { showingInfo = false }
+                        }
+                    }
+            }
+            .frame(width: 460, height: 520)
+        }
+        #endif
     }
 
     // MARK: - Sections
@@ -237,14 +265,20 @@ struct PortalRequestView: View {
 
                 if request.imageState == .pending {
 
-                    Button(action: { moderateImage(approve: true) },
-                           label: { Label("Approve image", systemImage: "checkmark.circle") })
-                        .disabled(store.moderation.isWorking)
+                    // One row: the two are a single either/or decision, and stacking them made the
+                    // section taller than the pane it sits in.
+                    HStack(spacing: 10) {
 
-                    Button(role: .destructive,
-                           action: { moderateImage(approve: false) },
-                           label: { Label("Reject and delete image", systemImage: "trash") })
-                        .disabled(store.moderation.isWorking)
+                        Button(action: { moderateImage(approve: true) },
+                               label: { Label("Approve", systemImage: "checkmark.circle") })
+
+                        Button(role: .destructive,
+                               action: { moderateImage(approve: false) },
+                               label: { Label("Reject and delete", systemImage: "trash") })
+
+                        Spacer(minLength: 0)
+                    }
+                    .disabled(store.moderation.isWorking)
                 }
 
             } header: { Text("Image") }
@@ -275,10 +309,17 @@ struct PortalRequestView: View {
                    label: { Label("Clear reports", systemImage: "checkmark.shield") })
                 .disabled(request.moderation == .approved)
 
-            Button(role: .destructive,
-                   action: { Task { await store.moderation.hide(request); request.moderation = .hidden } },
-                   label: { Label("Hide from everyone", systemImage: "eye.slash") })
-                .disabled(request.moderation == .hidden)
+            if request.moderation == .hidden {
+
+                Button(action: { Task { await store.moderation.unhide(request); request.moderation = .visible } },
+                       label: { Label("Unhide", systemImage: "eye") })
+            }
+            else {
+
+                Button(role: .destructive,
+                       action: { Task { await store.moderation.hide(request); request.moderation = .hidden } },
+                       label: { Label("Hide from everyone", systemImage: "eye.slash") })
+            }
 
         } header: { Text("Moderation") }
           footer: { Text("Clearing moves it to approved, so the existing reports stop counting and it can't silently re-hide itself.") }

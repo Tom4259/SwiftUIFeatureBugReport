@@ -38,12 +38,14 @@ struct RequestRow: View {
                     .lineLimit(2)
             }
 
-            if !request.labels.isEmpty || request.status != .open {
+            if !request.labels.isEmpty || request.status != .open || request.moderation == .hidden {
 
                 HStack(spacing: 6) {
 
                     if request.status == .complete { ResolvedVersionBadge(version: request.resolvedInVersion) }
                     else if request.status != .open { StatusBadge(status: request.status) }
+
+                    if request.moderation == .hidden { HiddenBadge() }
 
                     ForEach(request.labels.prefix(2), id: \.self) { LabelChip(name: $0) }
                 }

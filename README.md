@@ -8,7 +8,7 @@ There is no server to run, no API key to ship, and no third party in the loop. T
 package receives nothing and has no access to any integrator's data.
 
 > **Version 2.0 is a ground-up rebuild.** The GitHub Issues backend is gone. See
-> [Upgrading from 1.x](#8-upgrading-from-1x).
+> [Upgrading from 1.x](#9-upgrading-from-1x).
 
 1. [What it is](#1-what-it-is)
 2. [Installation](#2-installation)
@@ -16,8 +16,9 @@ package receives nothing and has no access to any integrator's data.
 4. [Setup](#4-setup): the CloudKit work, 8 steps
 5. [Finding your user record ID](#5-finding-your-user-record-id)
 6. [Index checklist](#6-index-checklist)
-7. [Privacy](#7-privacy): written to lift into your own policy
-8. [Upgrading from 1.x](#8-upgrading-from-1x)
+7. [Localisation](#7-localisation)
+8. [Privacy](#8-privacy): written to lift into your own policy
+9. [Upgrading from 1.x](#9-upgrading-from-1x)
 
 ---
 
@@ -33,13 +34,21 @@ Seven SwiftUI views over eight CloudKit record types in your app's **public** da
 | `RoadmapView` | everyone | What's coming, grouped by status; what shipped, grouped by the version it shipped in |
 | `UpdatesView` | everyone | Activity on requests you created or voted for |
 | `MyDataView` | everyone | Counts of your requests, votes, replies and reports, plus a real deletion |
-| `DeveloperPortalView` | you | Open / Reported / Images / All queues, search, reported items with category breakdown, pending images, version filter, status, labels, replies, hide, delete, block |
+| `DeveloperPortalView` | you | Open / Reported / Images / All queues, search, reported items with category breakdown, pending images, version filter, status, labels, replies, hide and unhide, delete, block |
 
-Every view is standalone and takes `embedsNavigationStack: Bool = true`. Leave it on when presenting
+Most views are standalone and take `embedsNavigationStack: Bool = true`. Leave it on when presenting
 into something with no navigation of its own (a sheet, a split view's detail column). Turn it **off**
 when pushing onto a stack your app already owns. A `NavigationStack` nested inside another stack's
 destination makes SwiftUI compare the two paths against each other, and it traps when their element
 types differ.
+
+`FeedbackBoardView` is the exception: it has no `embedsNavigationStack` parameter, because it never
+brings a navigation container of its own. On macOS it lays the request list and the selected request
+out side by side itself, using a plain `HStack` rather than a `NavigationSplitView` - a split view
+nested inside another split view's detail column is not supported, and doing it causes duplicated
+search fields and silently dropped toolbar buttons. On iOS it pushes the detail onto whichever stack
+you present it in. Either way, put it wherever you like: a tab, a sheet, a settings pane, or your own
+split view's detail column.
 
 ```swift
 import SwiftUIFeatureBugReport
@@ -82,6 +91,12 @@ FeedbackFormView(
 `metadata` is stored on a **private** record only you and the submitter can read. Title and body stay
 required at submit regardless of what was prefilled.
 
+Whatever you attach is shown to the submitter in full, before they send, under **What gets included**.
+When `metadata` is non-empty that screen also carries an **Include additional information** toggle,
+defaulted on: turning it off drops your key/value pairs from the submission. Device information
+(app version and build, OS version, device model, platform) is never gated by that toggle - it is the
+minimum needed to triage a report, and it is the same information any public issue tracker collects.
+
 ---
 
 ## 2. Installation
@@ -117,6 +132,10 @@ later as a runtime error that does not name the step you missed.
 
 Both platforms are first-class. The image picker, refresh affordance, row actions, navigation shape
 and portal layout each branch properly rather than degrading on the Mac.
+
+`swift test` runs the suite. It needs no CloudKit container, no account and no network - the parts
+worth pinning are pure: the deterministic record names that enforce one-vote-per-user, the visibility
+and edit rules, the CloudKit error mapping, and the record/model field mapping.
 
 ---
 
@@ -250,42 +269,76 @@ CloudKit Dashboard → **Deploy Schema Changes**.
 Records saved in Development auto-create their record types. **Production does not.** Skip this and
 your App Store build fails in a way that looks nothing like a missing schema.
 
-### Step 6a. Your own builds will not see App Store feedback
+Do this once you have the package working, not before. Everything up to here happens in Development
+on purpose: it is the only environment a schema can be imported into, it is resettable, and it is
+where the test requests and the trial runs of the destructive portal actions belong. Production
+record types and fields are **permanent** - you can add later, never remove, rename or retype - so
+the point of the Development phase is to find out what you got wrong while that is still free.
 
-CloudKit picks the environment from how the app was signed. **An Xcode build talks to Development; an
-App Store or TestFlight build talks to Production.** So running your app from Xcode shows you your own
-test records, never the feedback real users are sending. This catches people out badly, because an
-empty Production board and an empty Development board look exactly the same.
+> **Then switch to Production, before you distribute or test the real thing.**
+>
+> Deploying the schema does *not* move your app. Your builds keep reading Development until you say
+> otherwise, and an empty Production board looks exactly like an empty Development one - so nothing
+> tells you. Set this in your app's `.entitlements` now:
+>
+> ```xml
+> <key>com.apple.developer.icloud-container-environment</key>
+> <string>Production</string>
+> ```
+>
+> Then delete the app, reinstall, and confirm you can see a request you know is in Production. Step 6a
+> covers what this does and how to switch back.
+>
+> Two things that do not come across with the deploy, and both fail at runtime rather than at build
+> time: your `dev` role membership (step 4, redo it on the Production side) and any records you were
+> testing with.
 
-Three ways round it, cheapest first:
+### Step 6a. Point your builds at Production and stay there
 
-**Add a Production scheme.** Put `com.apple.developer.icloud-container-environment` = `Production` in a
-second entitlements file, point a new build configuration and scheme at it, and run that scheme when
-you want to moderate live feedback. This works from an ordinary debug build, on device and in the
-Simulator. Leave `aps-environment` as `development` - push and CloudKit are separate keys.
+CloudKit picks its environment from how the app was **signed**, not from anything in your code. By
+default an Xcode build talks to Development and only an App Store or TestFlight build talks to
+Production - so out of the box, running your app shows you your own test records and never the
+feedback real users are sending. This catches people out badly, because an empty Production board and
+an empty Development board look identical.
 
-**Install your own TestFlight build.** Also Production, no configuration at all, but no debugger and a
-slow loop.
+Once the schema is deployed, Development has no further use. Override the default and leave it
+overridden. Add this to your app's `.entitlements`:
 
-**CloudKit Console or `cktool`.** Both reach Production today. Neither writes `Activity` records, so
-anything you change there is **silent** - the user gets no notification. Fine in an emergency, wrong as
-a routine tool.
-
-Whichever you choose, set `FeedbackConfiguration.environment` to match. The portal shows a warning
-banner when it is `.development`, and nothing at all when it is `.production` - the point is to catch
-the mistake, not to decorate every triage session:
-
-```swift
-#if PRODUCTION_CLOUDKIT
-environment: .production
-#else
-environment: .development
-#endif
+```xml
+<key>com.apple.developer.icloud-container-environment</key>
+<string>Production</string>
 ```
 
-The default (`Debug` to Development, `Release` to Production) is right unless you force the
-entitlement. Nothing in the app can read which environment CloudKit actually chose, so this is a label
-you set rather than a value the package detects, which is why it is worth setting honestly.
+That works from an ordinary debug build, on device and in the Simulator, with the debugger attached.
+Leave `aps-environment` as `development` - push and CloudKit are separate keys and do not have to
+agree.
+
+That entitlement is the whole of it. The package has nothing to configure to match - it never asks
+which environment it is in, because it never needs to know: CloudKit has already chosen the database
+before any of this code runs.
+
+#### Switching back to Development
+
+You need Development again only when you change the schema - and you have no choice, because a schema
+is imported into Development and *deployed* to Production, never imported into Production directly.
+Forking or modifying this package is the other case.
+
+Change the entitlement value from `Production` to `Development`, and back when you are done. One
+word, one file, and nothing else in the project refers to it.
+
+Delete the app between switches. Entitlements are applied at signing, so a stale install keeps
+talking to the environment it was signed for.
+
+Two habits worth keeping while you are pointed at Production, since there is no undo and these are
+real people's records: do not submit test feedback, and do not exercise **Reject and delete image**,
+**Hide everything by this author** or **Delete all of this author's data** unless you mean them. That
+kind of testing belongs in Development, during implementation.
+
+#### Without any build at all
+
+The CloudKit Console and `cktool` both reach Production. Neither writes `Activity` records, so
+anything you change there is **silent** - the user gets no notification. Fine in an emergency, wrong
+as a routine tool.
 
 ### Step 6b. How releases flow through the board
 
@@ -344,7 +397,6 @@ FeedbackConfiguration(
     reportThreshold: 3,
     allowComments: true,          // step 5
     allowImageAttachments: true,  // step 5
-    environment: .development     // step 6a: a label, not a switch
 )
 ```
 
@@ -399,7 +451,10 @@ the resulting errors do not name the missing index.
 
 **`Report`:**
 
-- [ ] `request`, `category`: Queryable (`reason` is free text and needs no index)
+- [ ] `request`, `category`: Queryable. These are the only two fields on `Report` - there is
+      deliberately no free-text field, because `Report` is world-readable so every client can
+      count toward the threshold, and CloudKit has no per-field permissions. A "tell us more"
+      box would have collected private-feeling prose into a record any user can read.
 
 **`Follow`:**
 
@@ -430,6 +485,12 @@ the resulting errors do not name the missing index.
       its membership does not, and nothing works for you as a developer until you add yourself.
 - [ ] If you set `allowComments: false`, the `Comment` record type is **absent** from your schema.
       The flag alone only hides the UI; removing the type is what enforces it. `DevComment` stays.
+- [ ] `Comment` grants `READ, WRITE` to `dev`: without it you cannot remove a single abusive reply -
+      hiding the parent request is the only lever and it takes the whole thread with it - and the
+      portal's **Delete all of this author's data** fails partway through, leaving that person's
+      replies on other people's requests behind.
+- [ ] `Follow` grants `READ, WRITE` to `dev`, not just `READ`: the same deletion pass removes follows,
+      and read alone is not enough to delete someone else's.
 - [ ] `Vote`, `Report` and `Follow` each grant `READ, WRITE` to `_creator`: Without it a vote is
       permanent, a follow cannot be cancelled, and **"delete my data" cannot remove the user's
       reports**. It fails with a permission error that reads like a misconfigured `dev` role.
@@ -444,7 +505,23 @@ the resulting errors do not name the missing index.
 
 ---
 
-## 7. Privacy
+## 7. Localisation
+
+Every string in this package is British English, and `Package.swift` declares
+`defaultLocalization: "en-GB"`.
+
+The package ships **no translations of its own**. `Text` and `String(localized:)` both resolve
+against `Bundle.main`, not the package bundle, so the keys land in your app's own string catalogue -
+build once with the package integrated and Xcode picks them up alongside your own strings. Translate
+them there.
+
+That is deliberate: a feedback board reading in a different English, or a different voice, from the
+app around it is worse than one that simply inherits the host's. It does mean you own the
+translations, so budget for roughly 200 short strings if you ship in more than one language.
+
+---
+
+## 8. Privacy
 
 Written so you can lift it into your own privacy policy.
 
@@ -468,7 +545,11 @@ be described as such.
 
 **Reports are not confidential.** Report records are world-readable, because every client counts them
 locally to apply the auto-hide threshold without waiting for you to act. A consequence is that the
-reporter is discoverable via that same `creatorUserRecordID`. If you would rather have reporter
+reporter is discoverable via that same `creatorUserRecordID`.
+
+A report therefore carries a **category and nothing else**. There is deliberately no free-text field:
+CloudKit has no per-field permissions, so a "tell us more" box would collect private-feeling prose -
+often naming someone - into a record any user of your app can read. If you would rather have reporter
 anonymity than auto-hiding, drop `GRANT READ TO "_world"` from the `Report` record type: hiding then
 only happens when you act on a report.
 
@@ -491,8 +572,9 @@ same from the portal, keyed by `creatorID`, so a request that arrives by email c
 Deletion is real and it cascades: deleting a request takes the votes and replies other people left on
 it with it. Both confirmation dialogs say so before you commit.
 
-Requests, replies and reports (everything the user wrote) are deleted. **Votes cast on other
-people's requests are deliberately left in place:** a vote is a bare reference with no content of its
+Requests, replies and reports (everything the user wrote) are deleted, and so are their follows - a
+follow is private to them and changes nothing anyone else can see, so there is nothing to preserve.
+**Votes cast on other people's requests are deliberately left in place:** a vote is a bare reference with no content of its
 own, and deleting them would silently rewrite other people's totals. Users can withdraw any
 individual vote from the request itself, and the confirmation dialog says which is which.
 
@@ -502,7 +584,7 @@ own App Store Connect privacy answers.
 
 ---
 
-## 8. Upgrading from 1.x
+## 9. Upgrading from 1.x
 
 **Breaking, with no data migration.**
 

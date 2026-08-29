@@ -10,6 +10,11 @@ public struct RoadmapView: View {
 
     @State private var store: FeedbackStore
 
+    #if os(macOS)
+    /// The request whose detail is showing in a sheet (§ row(for:)).
+    @State private var opened: FeedbackRequest?
+    #endif
+
     private let embedsNavigationStack: Bool
 
     public init(configuration: FeedbackConfiguration, embedsNavigationStack: Bool = true) {
@@ -84,7 +89,7 @@ public struct RoadmapView: View {
                 }
             }
         }
-        .navigationTitle("Roadmap")
+        .ownedNavigationTitle("Roadmap", ownsStack: embedsNavigationStack)
         .feedbackRefreshable { await store.load() }
         .task {
 
@@ -92,27 +97,56 @@ public struct RoadmapView: View {
 
             await store.start()
         }
+
+        #if os(macOS)
+        .sheet(item: $opened) { request in
+
+            NavigationStack {
+
+                RequestDetailView(store: store, request: request, embedsNavigationStack: false)
+                    .toolbar {
+
+                        ToolbarItem(placement: .confirmationAction) {
+
+                            Button("Done") { opened = nil }
+                        }
+                    }
+            }
+            .frame(width: 520, height: 560)
+        }
+        #endif
     }
 
     @ViewBuilder private func row(for request: FeedbackRequest) -> some View {
 
+        let label = VStack(alignment: .leading, spacing: 4) {
+
+            Text(request.title)
+                .font(.subheadline)
+                .lineLimit(2)
+
+            Text("^[\(store.votes.tally(for: request.id)) vote](inflect: true)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
+        #if os(macOS)
+        // A sheet, not a push. On the Mac the roadmap is laid out inside the board's own content, so
+        // a push here would land on the *host's* stack and take over whatever pane the board sits in.
+        Button(action: { opened = request }) {
+
+            label
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        #else
         NavigationLink {
 
             RequestDetailView(store: store, request: request, embedsNavigationStack: false)
 
-        } label: {
-
-            VStack(alignment: .leading, spacing: 4) {
-
-                Text(request.title)
-                    .font(.subheadline)
-                    .lineLimit(2)
-
-                Text("^[\(store.votes.tally(for: request.id)) vote](inflect: true)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+        } label: { label }
+        #endif
     }
 
     private var upcoming: [(status: RequestStatus, requests: [FeedbackRequest])] {

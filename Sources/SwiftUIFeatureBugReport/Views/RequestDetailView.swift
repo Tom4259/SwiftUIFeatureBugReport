@@ -18,7 +18,6 @@ public struct RequestDetailView: View {
     @State private var isSendingReply = false
 
     @State private var showingReport = false
-    @State private var reportReason = ""
     @State private var reportCategory: ReportCategory = .spam
 
     @State private var showingEdit = false
@@ -54,6 +53,13 @@ public struct RequestDetailView: View {
 
             Section {
 
+                // Spelled out rather than left to the navigation title: on the Mac this view is a pane
+                // of someone else's split view, where that title is drawn by the host if at all, and
+                // the detail opened onto the body with nothing saying which request you were reading.
+                Text(request.title)
+                    .font(.title3.weight(.semibold))
+                    .textSelection(.enabled)
+
                 Text(request.body)
 
                 HStack(spacing: 6) {
@@ -62,6 +68,8 @@ public struct RequestDetailView: View {
 
                     if request.status == .complete { ResolvedVersionBadge(version: request.resolvedInVersion) }
                     else { StatusBadge(status: request.status) }
+
+                    if request.moderation == .hidden { HiddenBadge() }
 
                     ForEach(request.labels, id: \.self) { LabelChip(name: $0) }
                 }
@@ -100,7 +108,12 @@ public struct RequestDetailView: View {
             await store.comments.load(for: request.id)
         }
 
-        .feedbackRefreshable { await store.comments.load(for: request.id) }
+        // iOS only. On the Mac `feedbackRefreshable` put a second Refresh button in the host's bar -
+        // one that appeared and vanished with the selection and, despite its name, reloaded only this
+        // request's comments. The board header's refresh is the one refresh, and it does both now.
+        #if os(iOS)
+        .refreshable { await store.comments.load(for: request.id) }
+        #endif
 
         .sheet(isPresented: $showingEdit) {
 
@@ -222,14 +235,6 @@ public struct RequestDetailView: View {
                     }
 
                 } header: { Text("Reason") }
-
-                Section {
-
-                    FeedbackTextEditor(placeholder: "Anything else we should know? (optional)",
-                                       text: $reportReason,
-                                       minHeight: 90)
-
-                } header: { Text("Detail") }
                   footer: { Text("It stops showing for you straight away. Reports are reviewed by the developer.") }
             }
             .formStyle(.grouped)
@@ -383,17 +388,13 @@ public struct RequestDetailView: View {
 
     private func submitReport() {
 
-        let reason = reportReason.trimmingCharacters(in: .whitespacesAndNewlines)
-
         showingReport = false
 
         Task {
 
             do {
 
-                try await store.reports.report(request.id, category: reportCategory, reason: reason)
-
-                reportReason = ""
+                try await store.reports.report(request.id, category: reportCategory)
 
                 // Reported content stops showing for the reporter immediately, so there is nothing
                 // left on this screen to look at.

@@ -1,19 +1,3 @@
-/*
- * GENERATED FILE - exported from CloudKit with `cktool export-schema`. Do not hand-edit.
- *
- * To change the schema: edit it here, run `validate-schema`, `import-schema`, then re-export over
- * this file so the committed version matches what the server actually stores.
- *
- * Development and Production are separate. An import only touches Development - deploy to Production
- * from the CloudKit Dashboard ("Deploy Schema Changes") or your App Store build will not see it.
- *
- * Production record types and fields are permanent once deployed: you can add later, never remove.
- *
- * The reasoning behind the shape of this schema - why no BOOLEAN fields, why Comment and DevComment
- * are separate record types, why Report is world-readable but Follow is not, why only `title` is
- * SEARCHABLE - is in README.md under "Index checklist" and "Privacy".
- */
-
 DEFINE SCHEMA
 
     CREATE ROLE dev;
@@ -47,7 +31,8 @@ DEFINE SCHEMA
         requestCreator  STRING QUERYABLE,
         GRANT READ, WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
-        GRANT READ TO "_world"
+        GRANT READ TO "_world",
+        GRANT READ, WRITE TO dev
     );
 
     RECORD TYPE DevComment (
@@ -75,7 +60,7 @@ DEFINE SCHEMA
         request         REFERENCE QUERYABLE,
         GRANT READ, WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
-        GRANT READ TO dev
+        GRANT READ, WRITE TO dev
     );
 
     RECORD TYPE Report (
@@ -86,7 +71,6 @@ DEFINE SCHEMA
         "___modifiedBy" REFERENCE QUERYABLE,
         "___recordID"   REFERENCE QUERYABLE,
         category        STRING QUERYABLE,
-        reason          STRING,
         request         REFERENCE QUERYABLE,
         GRANT READ, WRITE TO "_creator",
         GRANT CREATE TO "_icloud",

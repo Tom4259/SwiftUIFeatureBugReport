@@ -57,17 +57,34 @@ extension View {
         #endif
     }
 
+    /// A navigation title, but only when this view owns the navigation container it would set it on.
+    ///
+    /// On the Mac an embedded view is a pane inside *someone else's* split view, and a title set from
+    /// there renames their window - the Settings window read "Portal" while its sidebar still
+    /// highlighted Feedback. Setting it on the ancestor instead does not help: the descendant's
+    /// preference wins. Not setting it at all is the only thing that reliably does.
+    ///
+    /// iOS always pushes onto a stack that belongs to the screen, so the title is always its own.
+    @ViewBuilder func ownedNavigationTitle(_ title: LocalizedStringKey, ownsStack: Bool) -> some View {
+
+        #if os(macOS)
+        if ownsStack { self.navigationTitle(title) } else { self }
+        #else
+        self.navigationTitle(title)
+        #endif
+    }
+
     /// Tightens the space around a bare row - a segmented picker with no background still claims a
     /// full section's worth of spacing, which reads as a double gap next to a banner.
     ///
     /// `listSectionSpacing` is iOS-only; the Mac's list metrics do not have the same problem.
     @ViewBuilder func compactSectionSpacing() -> some View {
 
-        #if os(iOS)
+#if os(iOS)
         self.listSectionSpacing(.compact)
-        #else
+#else
         self
-        #endif
+#endif
     }
 
     /// Row actions land as a swipe on iOS and a context menu on macOS. Both platforms get the context
@@ -75,13 +92,13 @@ extension View {
     /// pointer equivalent.
     @ViewBuilder func rowActions<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
 
-        #if os(iOS)
+#if os(iOS)
         self
             .swipeActions(edge: .trailing, allowsFullSwipe: false) { content() }
             .contextMenu { content() }
-        #else
+#else
         self.contextMenu { content() }
-        #endif
+#endif
     }
 }
 

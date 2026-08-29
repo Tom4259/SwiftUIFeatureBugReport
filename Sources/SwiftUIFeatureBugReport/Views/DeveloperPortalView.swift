@@ -78,19 +78,27 @@ public struct DeveloperPortalView: View {
 
     @ViewBuilder private var container: some View {
 
-        #if os(macOS)
-        // Triage without navigating: the queue stays on the left and the request opens beside it.
-        if embedsNavigationStack {
+#if os(macOS)
+        // Never a `NavigationSplitView` of its own, regardless of `embedsNavigationStack` - the only
+        // known caller embeds this in another split view's detail column (via `FeedbackBoardView`'s
+        // toolbar menu), and nesting one split view inside another's detail is not supported. A plain
+        // `HStack` gets the same side-by-side look without being one, so it nests cleanly. See the
+        // matching fix and its longer explanation on `FeedbackBoardView.container`.
+        HStack(spacing: 0) {
 
-            NavigationSplitView {
+            queueList
+                .frame(minWidth: 300, idealWidth: 360, maxWidth: 420)
 
-                queueList.navigationSplitViewColumnWidth(min: 300, ideal: 360)
+            Divider()
 
-            } detail: {
+            Group {
 
                 if let selected = selectedRequest {
 
-                    PortalRequestView(store: store, request: selected)
+                    // Its own `NavigationStack` so its toolbar and refresh action stay scoped to this
+                    // pane rather than merging into the queue list's.
+                    NavigationStack { PortalRequestView(store: store, request: selected) }
+                        .id(selected.id)
                 }
                 else {
 
@@ -99,12 +107,10 @@ public struct DeveloperPortalView: View {
                                        message: "Pick a request from the list.")
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        else {
-
-            queueList
-        }
-        #else
+#else
+        
         if embedsNavigationStack {
 
             NavigationStack { queueList }
@@ -113,78 +119,153 @@ public struct DeveloperPortalView: View {
 
             queueList
         }
-        #endif
+#endif
     }
 
     @ViewBuilder private var queueList: some View {
 
-        List(selection: $selection) {
+#if os(macOS)
+        // Plain content, not `.searchable`/`.feedbackRefreshable` - nested this deep inside a host's
+        // own split view detail column, macOS has been seen merging and re-rendering those per-column
+        // toolbar contributions, producing duplicate search fields and refresh buttons. See the
+        // matching fix on `FeedbackBoardView.board`.
+        VStack(spacing: 0) {
+            
+            VStack(spacing: 8) {
+                
+                HStack(spacing: 10) {
 
-            // Shown only for Development. In Production there is nothing to warn about, and a
-            // permanent "all is well" banner is just chrome above every triage session.
-            if store.configuration.environment == .development {
+                    HStack(spacing: 4) {
 
-                Section {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
 
-                    EnvironmentBanner(containerIdentifier: store.configuration.containerIdentifier)
+                        TextField("Search", text: $searchText)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+
+                    Spacer(minLength: 8)
+
+                    versionMenu
+
+                    Button(action: { Task { await store.load() } }) {
+
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Refresh")
+                }
+                
+                listFilter
+            }
+            .padding([.horizontal, .top], 12)
+
+            portalList
+        }
+        .ownedNavigationTitle("Dev Portal", ownsStack: embedsNavigationStack)
+#else
+        portalList
+            .navigationTitle("Dev Portal")
+            .searchable(text: $searchText, prompt: Text("Search"))
+            .feedbackRefreshable { await store.load() }
+            .toolbar {
+
+                if !availableVersions.isEmpty {
+
+                    ToolbarItem(placement: toolbarTrailingPlacement) { versionMenu }
                 }
             }
+#endif
+    }
+
+    @ViewBuilder private var portalList: some View {
+
+        // No `selection:` on the Mac - rows are buttons that set `selection` themselves (§ row(for:)).
+#if os(macOS)
+        List { portalRows }
+#else
+        List(selection: $selection) { portalRows }
+#endif
+    }
+    
+    @ViewBuilder private var listFilter: some View {
+        
+        // No visible "Queue" label - the row has zero insets so the control can span it, and a
+        // leading label ate into that width and pushed the segments off-centre. Open/Reported/
+        // Images/All read as a queue switch on sight, exactly as the board's filter does.
+        Picker("", selection: $queue) {
+
+            ForEach(PortalQueue.allCases, id: \.self) {
+
+                Label($0.localised, systemImage: $0.symbolName).tag($0)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .accessibilityLabel(Text("Triage queue"))
+        .frame(maxWidth: .infinity, minHeight: 50)
+    }
+
+    @ViewBuilder private var portalRows: some View {
+
+#if os(iOS)
+        Section {
+            
+            listFilter
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
+        .compactSectionSpacing()
+#endif
+
+        if let error = store.moderation.error {
+
+            Section { FeedbackErrorBanner(error: error, retry: nil) }
+        }
+
+        if queued.isEmpty {
 
             Section {
 
-                Picker("Queue", selection: $queue) {
-
-                    ForEach(PortalQueue.allCases, id: \.self) {
-
-                        Label($0.localised, systemImage: $0.symbolName).tag($0)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .compactSectionSpacing()
-
-            if !availableVersions.isEmpty {
-
-                Section {
-
-                    Picker("App version", selection: $versionFilter) {
-
-                        Text("All versions").tag(String?.none)
-
-                        ForEach(availableVersions, id: \.self) { Text($0).tag(String?.some($0)) }
-                    }
-                }
-            }
-
-            if let error = store.moderation.error {
-
-                Section { FeedbackErrorBanner(error: error, retry: nil) }
-            }
-
-            if queued.isEmpty {
-
-                Section {
-
-                    FeedbackEmptyState(symbol: queue.symbolName,
-                                       title: "Nothing here",
-                                       message: "This queue is empty.")
-                }
-            }
-            else {
-
-                Section {
-
-                    ForEach(queued) { request in row(for: request) }
-
-                } header: { Text("^[\(queued.count) request](inflect: true)") }
+                FeedbackEmptyState(symbol: queue.symbolName,
+                                   title: "Nothing here",
+                                   message: "This queue is empty.")
             }
         }
-        .navigationTitle("Portal")
-        .searchable(text: $searchText, prompt: Text("Search title, body or author"))
-        .feedbackRefreshable { await store.load() }
+        else {
+
+            Section {
+
+                ForEach(queued) { request in row(for: request) }
+
+            } header: { Text("^[\(queued.count) request](inflect: true)") }
+        }
     }
+
+    /// Lives in the header rather than as a list row - it is a filter over the list, and as a row it
+    /// pushed the requests themselves below the fold before a single one had been read.
+    @ViewBuilder private var versionMenu: some View {
+
+        if !availableVersions.isEmpty {
+
+            Picker("App version", selection: $versionFilter) {
+
+                Text("All versions").tag(String?.none)
+
+                ForEach(availableVersions, id: \.self) { Text($0).tag(String?.some($0)) }
+            }
+            .labelsHidden()
+            .accessibilityLabel(Text("Filter by app version"))
+            .help("Filter by app version")
+#if os(macOS)
+            .fixedSize()
+#endif
+        }
+    }
+
 
     @ViewBuilder private func row(for request: FeedbackRequest) -> some View {
 
@@ -235,9 +316,20 @@ public struct DeveloperPortalView: View {
         }
 
         #if os(macOS)
-        content
-            .tag(request.id)
-            .rowActions { rowMenu(for: request) }
+        // A button, not a selectable row - `List(selection:)` draws its own highlight and focus ring,
+        // which is the mismatched shape that showed up behind a selected row. See the matching change
+        // on `FeedbackBoardView.row(for:)`.
+        Button(action: { selection = request.id }) {
+
+            content
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(selection == request.id ? Color.accentColor.opacity(0.18) : Color.clear)
+        .accessibilityAddTraits(selection == request.id ? [.isSelected] : [])
+        .rowActions { rowMenu(for: request) }
         #else
         NavigationLink { PortalRequestView(store: store, request: request) }
             label: { content }
@@ -247,8 +339,16 @@ public struct DeveloperPortalView: View {
 
     @ViewBuilder private func rowMenu(for request: FeedbackRequest) -> some View {
 
-        Button(role: .destructive, action: { Task { await store.moderation.hide(request) } },
-               label: { Label("Hide", systemImage: "eye.slash") })
+        if request.moderation == .hidden {
+
+            Button(action: { Task { await store.moderation.unhide(request) } },
+                   label: { Label("Unhide", systemImage: "eye") })
+        }
+        else {
+
+            Button(role: .destructive, action: { Task { await store.moderation.hide(request) } },
+                   label: { Label("Hide", systemImage: "eye.slash") })
+        }
 
         Button(action: { Task { await store.moderation.approve(request) } },
                label: { Label("Clear reports", systemImage: "checkmark.shield") })

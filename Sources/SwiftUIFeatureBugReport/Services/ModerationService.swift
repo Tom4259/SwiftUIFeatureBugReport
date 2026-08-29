@@ -89,6 +89,20 @@ import Observation
         }
     }
 
+    /// Undoes a manual `hide`, putting the request back under the ordinary rule rather than forcing it
+    /// visible.
+    ///
+    /// Deliberately `visible`, not `approved`: if the request is *also* over the report threshold it
+    /// should go straight back to auto-hidden, because that is a separate decision made by users and
+    /// unhiding was never a ruling on it. Use `approve` to overrule the reports as well.
+    public func unhide(_ request: FeedbackRequest) async {
+
+        await mutate(request, bumpsActivity: false) { record in
+
+            record[FieldKey.moderation] = ModerationState.visible.rawValue
+        }
+    }
+
     /// Clearing a report. Moves the request to `approved` rather than back to `visible`, so the
     /// existing reports stop counting - otherwise the threshold is still met and the request re-hides
     /// itself as soon as the next client refreshes.

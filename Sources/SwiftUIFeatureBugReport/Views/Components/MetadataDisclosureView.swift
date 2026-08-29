@@ -10,6 +10,8 @@ import SwiftUI
 /// No summarising and no hidden keys - if a developer attaches something through `FeedbackPrefill`,
 /// the person submitting gets to read it before they send it.
 struct MetadataDisclosureView: View {
+    
+    @Binding var includeMetadata: Bool
 
     let environment: DeviceEnvironment
     let metadata: [String: String]
@@ -26,30 +28,41 @@ struct MetadataDisclosureView: View {
                 }
 
             } header: { Text("Device information") }
-              footer: { Text("Visible to anyone using this app, the same as on any public issue tracker.") }
+            footer: { Text("Visible to everyone") }
 
             if metadata.isEmpty {
 
                 Section {
 
-                    Text("This app is not attaching any additional information.")
+                    Text("This app is not attaching any additional information")
                         .foregroundStyle(.secondary)
                 }
             }
             else {
-
+                
+                // Its own section, not sharing a row with the disclosure link above - this only ever
+                // holds back the developer-added extras. Device information always goes regardless of this
+                // toggle; it is the minimum needed to triage a report, and matches any public issue tracker.
                 Section {
 
+                    Toggle("Include additional information", isOn: $includeMetadata)
+
+                } header: { Text("Additional information") }
+                  footer: { Text("Turning this off still sends device information, just not the additional information this app attached") }
+
+                
+                Section(content: {
+                    
                     ForEach(metadata.keys.sorted(), id: \.self) { key in
 
                         LabeledContent(key, value: metadata[key] ?? "")
                     }
-
-                } header: { Text("Added by this app") }
-                  footer: { Text("Stored privately. Only the developer and you can read this.") }
+                    
+                }, footer: { Text("Only the developer can see this") })
+                .opacity(includeMetadata ? 1 : 0.5)
             }
         }
-        .navigationTitle("What gets sent")
+        .navigationTitle("What gets included")
         .inlineNavigationTitle()
     }
 }

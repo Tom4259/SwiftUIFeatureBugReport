@@ -163,9 +163,15 @@ struct ImageGallery: View {
 
         if urls.count == 1, let image = FeedbackImage.image(at: urls[0]) {
 
+            // Capped, like the multi-image branch. A `resizable` image with no ceiling reports an
+            // ideal height of the full asset, which on the Mac grew the enclosing `Form` past the
+            // window and left its scroll view unable to reach anything below the image - the
+            // approve/reject buttons among them.
             image
                 .resizable()
                 .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: 220)
+                .clipShape(.rect(cornerRadius: 8))
                 .accessibilityLabel(Text("Image attached to this request"))
         }
         else {

@@ -62,7 +62,8 @@ public struct MyDataCounts: Sendable, Equatable {
     ///
     /// **Votes this user cast on other people's requests are deliberately left in place.** A vote is
     /// a bare reference with no content of its own, and removing them would silently rewrite other
-    /// people's tallies. Free text the user wrote - their requests, replies and reports - all goes.
+    /// people's tallies. Free text the user wrote - their requests, replies and reports - all goes,
+    /// and so do their follows, which are private to them and change nothing anyone else can see.
     /// Anyone who wants a specific vote gone can withdraw it from the request itself.
     public func deleteAllMyData() async {
 
@@ -94,6 +95,11 @@ public struct MyDataCounts: Sendable, Equatable {
             // see the note above.
             try await CloudKitBatch.delete(await recordIDs(ofType: RecordType.comment, createdBy: creatorID), in: database)
             try await CloudKitBatch.delete(await recordIDs(ofType: RecordType.report, createdBy: creatorID), in: database)
+
+            // Follows go, unlike votes. A follow changes nothing anyone else can see - it only says
+            // this person wanted to hear about a request - so removing it rewrites no shared state,
+            // and leaving it would keep notifying an account whose data is supposed to be gone.
+            try await CloudKitBatch.delete(await recordIDs(ofType: RecordType.follow, createdBy: creatorID), in: database)
 
             counts = MyDataCounts(requests: 0,
                                   votes: await recordIDs(ofType: RecordType.vote, createdBy: creatorID).count,
