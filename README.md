@@ -193,7 +193,11 @@ xcrun cktool export-schema --team-id <TEAM> --container-id <CONTAINER> \
 > token, and reaching for one just to check an import is wasted effort: the export uses the
 > management token you already have, and it shows the schema as CloudKit actually stored it.
 
-`Schema.ckdb` is a real `export-schema` output. **Do not hand-edit it.** To change the schema, edit it
+`Schema.ckdb` is a real `export-schema` output, comments and all - which is to say, without them: an
+export writes only what the server stores, so any header or explanation you add to that file is
+destroyed the next time you re-export. Keep the reasoning here in the README instead.
+
+**Do not hand-edit it.** To change the schema, edit it
 in the Dashboard or import a modified copy, then re-export over the file. Two rules the exported
 dialect enforces, if you ever do write one by hand: custom roles must be declared with `CREATE ROLE`
 in the file itself, and granting to an undeclared role fails validation with *"Record type permission

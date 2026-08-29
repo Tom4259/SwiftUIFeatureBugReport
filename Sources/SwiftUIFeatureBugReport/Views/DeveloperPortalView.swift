@@ -52,6 +52,10 @@ public struct DeveloperPortalView: View {
     @State private var selection: CKRecord.ID?
     @State private var searchText = ""
 
+    /// The request the delete confirmation is asking about. Held here rather than on the row so the
+    /// dialog survives the list re-sorting underneath it.
+    @State private var pendingDeletion: FeedbackRequest?
+
     private let embedsNavigationStack: Bool
 
     public init(configuration: FeedbackConfiguration, embedsNavigationStack: Bool = true) {
@@ -73,6 +77,30 @@ public struct DeveloperPortalView: View {
                 guard !store.requests.hasLoadedOnce else { return }
 
                 await store.start()
+            }
+            .confirmationDialog("Delete request?",
+                                isPresented: Binding(get: { pendingDeletion != nil },
+                                                     set: { if !$0 { pendingDeletion = nil } }),
+                                titleVisibility: .visible,
+                                presenting: pendingDeletion) { request in
+
+                Button("Delete", role: .destructive) {
+
+                    Task {
+
+                        await store.moderation.delete(request)
+
+                        if selection == request.id { selection = nil }
+
+                        pendingDeletion = nil
+                    }
+                }
+
+                Button("Cancel", role: .cancel) { pendingDeletion = nil }
+
+            } message: { request in
+
+                Text("\"\(request.title)\" and its votes, replies, reports and metadata are removed. This can't be undone.")
             }
     }
 
@@ -315,26 +343,38 @@ public struct DeveloperPortalView: View {
             }
         }
 
-        #if os(macOS)
+#if os(macOS)
         // A button, not a selectable row - `List(selection:)` draws its own highlight and focus ring,
-        // which is the mismatched shape that showed up behind a selected row. See the matching change
-        // on `FeedbackBoardView.row(for:)`.
+        // which is the mismatched shape that showed up behind a selected row.
+        //
+        // Styled as the same card the board uses, deliberately: triage and the public board show the
+        // same requests, and a row that looks different in the portal reads as a different kind of
+        // thing. See `FeedbackBoardView.row(for:)`, which this mirrors.
         Button(action: { selection = request.id }) {
 
             content
-                .padding(.vertical, 4)
+                .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
+                .background(selection == request.id ? AnyShapeStyle(Color.accentColor.opacity(0.18))
+                                                    : AnyShapeStyle(.quaternary),
+                            in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.accentColor, lineWidth: selection == request.id ? 1.5 : 0)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .listRowBackground(selection == request.id ? Color.accentColor.opacity(0.18) : Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
         .accessibilityAddTraits(selection == request.id ? [.isSelected] : [])
         .rowActions { rowMenu(for: request) }
-        #else
+#else
         NavigationLink { PortalRequestView(store: store, request: request) }
             label: { content }
             .rowActions { rowMenu(for: request) }
-        #endif
+#endif
     }
 
     @ViewBuilder private func rowMenu(for request: FeedbackRequest) -> some View {
@@ -352,6 +392,13 @@ public struct DeveloperPortalView: View {
 
         Button(action: { Task { await store.moderation.approve(request) } },
                label: { Label("Clear reports", systemImage: "checkmark.shield") })
+
+        Divider()
+
+        // Confirmed rather than immediate: this cascades, and there is no undo. Hiding is the
+        // reversible option and sits above it for that reason.
+        Button(role: .destructive, action: { pendingDeletion = request },
+               label: { Label("Delete", systemImage: "trash") })
     }
 
     private var selectedRequest: FeedbackRequest? {
