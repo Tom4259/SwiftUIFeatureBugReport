@@ -83,6 +83,18 @@ import UserNotifications
 
     // MARK: - Notification permission
 
+    /// APNs registration is required on every launch, but it must not trigger the permission prompt.
+    /// The prompt remains tied to the first submission below.
+    public func registerForRemoteNotificationsIfAuthorized() async {
+
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+
+        if status == .authorized || status == .provisional {
+
+            container.registerForRemoteNotifications()
+        }
+    }
+
     /// Asked **at the moment the user submits their first request**, never on first open of the board
     /// (§8.3). There is exactly one system prompt available per install and asking cold wastes it.
     @discardableResult public func requestNotificationAuthorization() async -> Bool {
@@ -93,7 +105,14 @@ import UserNotifications
 
         guard settings.authorizationStatus == .notDetermined else {
 
-            return settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            let isAuthorized = settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+
+            // APNs registration is per launch, not per permission prompt. The user may have granted
+            // permission in an earlier run, so register again whenever notifications remain enabled.
+            if isAuthorized { container.registerForRemoteNotifications() }
+
+            return isAuthorized
         }
 
         do {
@@ -142,7 +161,6 @@ import UserNotifications
             info.titleLocalizationKey = "ACTIVITY_TITLE"
             info.titleLocalizationArgs = [FieldKey.requestTitle]
             info.alertLocalizationKey = kind.localizationKey
-            info.alertLocalizationArgs = [FieldKey.requestTitle]
             info.shouldSendContentAvailable = true
             info.desiredKeys = [FieldKey.request, FieldKey.kind, FieldKey.message]
             info.soundName = "default"
@@ -171,7 +189,6 @@ import UserNotifications
         info.titleLocalizationKey = "ACTIVITY_TITLE"
         info.titleLocalizationArgs = [FieldKey.title]
         info.alertLocalizationKey = "NEW_REQUEST"
-        info.alertLocalizationArgs = [FieldKey.title]
         info.shouldSendContentAvailable = true
         info.desiredKeys = [FieldKey.title, FieldKey.type]
         info.soundName = "default"

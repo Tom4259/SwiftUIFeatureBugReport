@@ -16,8 +16,8 @@ public struct FeedbackConfiguration: Sendable {
 
     /// CloudKit user record IDs (`_abc123...`) that should see the developer portal.
     ///
-    /// A list rather than a single constant so a team can have more than one developer, and so a
-    /// developer can add a second Apple Account without shipping an update.
+    /// A list rather than a single constant so a team can have more than one developer. When this
+    /// list is hard-coded into the app, changing it requires a new build.
     ///
     /// This gates the portal **UI only**. The `dev` security role in the CloudKit Dashboard is what
     /// actually authorises developer writes, so shipping the portal in every build is not a hole.
@@ -35,7 +35,8 @@ public struct FeedbackConfiguration: Sendable {
     /// **This is a UI convention, not a security boundary.** CloudKit cannot express "only the request
     /// creator may comment", so a determined user could still write a `Comment` record directly. To
     /// make it enforced, omit the `Comment` record type from your schema entirely - see the README.
-    /// When it is `false` the package never queries that record type, so leaving it out is safe.
+    /// When it is `false` the package skips every query for that record type, so leaving it out is
+    /// safe.
     public let allowComments: Bool
 
     /// Whether users may attach screenshots.

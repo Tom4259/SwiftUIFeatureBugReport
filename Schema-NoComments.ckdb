@@ -1,0 +1,130 @@
+DEFINE SCHEMA
+
+    CREATE ROLE dev;
+
+    RECORD TYPE Activity (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        kind            STRING QUERYABLE,
+        message         STRING,
+        recipientID     STRING QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        requestTitle    STRING,
+        GRANT READ TO "_world",
+        GRANT READ, CREATE, WRITE TO dev
+    );
+
+    RECORD TYPE DevComment (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        body            STRING,
+        creatorID       STRING QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        requestCreator  STRING QUERYABLE,
+        GRANT READ TO "_world",
+        GRANT READ, CREATE, WRITE TO dev
+    );
+
+    RECORD TYPE Follow (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE Report (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        category        STRING QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE Request (
+        "___createTime"   TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"    REFERENCE QUERYABLE,
+        "___etag"         STRING,
+        "___modTime"      TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy"   REFERENCE QUERYABLE,
+        "___recordID"     REFERENCE QUERYABLE,
+        appVersion        STRING QUERYABLE,
+        body              STRING,
+        buildNumber       STRING QUERYABLE,
+        creatorID         STRING QUERYABLE,
+        deviceModel       STRING QUERYABLE,
+        imageState        STRING QUERYABLE,
+        images            LIST<ASSET>,
+        labels            LIST<STRING> QUERYABLE,
+        lastActivityAt    TIMESTAMP QUERYABLE SORTABLE,
+        moderation        STRING QUERYABLE,
+        osVersion         STRING QUERYABLE,
+        platform          STRING QUERYABLE,
+        resolvedInVersion STRING QUERYABLE,
+        status            STRING QUERYABLE,
+        title             STRING QUERYABLE SEARCHABLE,
+        type              STRING QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE RequestMetadata (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        payload         STRING,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ, WRITE TO dev
+    );
+
+    RECORD TYPE Users (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        roles           LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Vote (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE QUERYABLE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP QUERYABLE SORTABLE,
+        "___modifiedBy" REFERENCE QUERYABLE,
+        "___recordID"   REFERENCE QUERYABLE,
+        request         REFERENCE QUERYABLE,
+        GRANT READ, WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );

@@ -96,6 +96,7 @@ public struct UpdatesView: View {
         .feedbackRefreshable { await store.activity.feed() }
         .task {
 
+            await store.start()
             await store.activity.feed()
             store.activity.markAllSeen()
         }

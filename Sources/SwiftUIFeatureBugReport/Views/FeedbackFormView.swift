@@ -191,6 +191,7 @@ public struct FeedbackFormView: View {
 #endif
         }
         .onDisappear { searchTask?.cancel() }
+        .task { await store.start() }
 
         .alert("Thanks", isPresented: $showSuccess) {
 

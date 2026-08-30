@@ -243,9 +243,8 @@ public enum BoardFilter: String, CaseIterable, Sendable, Hashable {
 
 /// Why something was reported.
 ///
-/// A category rather than free text alone, so the portal's reported queue can be triaged at a glance
-/// and the developer is not reading twenty variations of "this is spam". The detail field stays
-/// optional alongside it.
+/// A category rather than free text, so the portal's reported queue can be triaged at a glance and
+/// no private-feeling prose is written to the world-readable `Report` record type.
 public enum ReportCategory: String, CaseIterable, Sendable, Hashable {
 
     case spam

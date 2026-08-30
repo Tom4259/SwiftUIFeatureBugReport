@@ -26,6 +26,10 @@ import Observation
     /// Set once the first submission has asked for notification permission, so it is asked once.
     private var hasAskedForNotifications = false
 
+    /// Shared by every public entry view. A configuration-based view owns a fresh store, while
+    /// store-based views often appear together; both paths must converge on one startup operation.
+    @ObservationIgnored private var startupTask: Task<Void, Never>?
+
     public convenience init(configuration: FeedbackConfiguration) {
 
         self.init(container: FeedbackContainer(configuration: configuration))
@@ -78,11 +82,34 @@ import Observation
 
     public func start() async {
 
+        if let startupTask {
+
+            await startupTask.value
+            return
+        }
+
+        guard container.identityState == .resolving else { return }
+
+        let task = Task { @MainActor [weak self] in
+
+            guard let self else { return }
+
+            await self.performStart()
+        }
+
+        startupTask = task
+
+        await task.value
+    }
+
+    private func performStart() async {
+
         await container.resolveIdentity()
         await load()
 
         if container.identityState == .ready {
 
+            await activity.registerForRemoteNotificationsIfAuthorized()
             await activity.registerSubscriptions()
             await activity.registerDeveloperSubscription()
         }

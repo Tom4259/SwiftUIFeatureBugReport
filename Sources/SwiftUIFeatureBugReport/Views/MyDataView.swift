@@ -92,7 +92,11 @@ public struct MyDataView: View {
         .formStyle(.grouped)
         .ownedNavigationTitle("My requests", ownsStack: embedsNavigationStack)
         .inlineNavigationTitle()
-        .task { await store.accountData.loadCounts() }
+        .task {
+
+            await store.start()
+            await store.accountData.loadCounts()
+        }
 
         .confirmationDialog("Delete everything you've posted?",
                             isPresented: $showingDeleteConfirmation,

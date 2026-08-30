@@ -45,7 +45,7 @@ public struct MyDataCounts: Sendable, Equatable {
 
         async let requests = recordIDs(ofType: RecordType.request, createdBy: me).count
         async let votes = recordIDs(ofType: RecordType.vote, createdBy: me).count
-        async let comments = recordIDs(ofType: RecordType.comment, createdBy: me).count
+        async let comments = commentRecordIDs(createdBy: me).count
         async let reports = recordIDs(ofType: RecordType.report, createdBy: me).count
 
         counts = MyDataCounts(requests: await requests,
@@ -93,7 +93,7 @@ public struct MyDataCounts: Sendable, Equatable {
 
             // Then the text this user left on *other people's* requests. Votes are not in this list -
             // see the note above.
-            try await CloudKitBatch.delete(await recordIDs(ofType: RecordType.comment, createdBy: creatorID), in: database)
+            try await CloudKitBatch.delete(await commentRecordIDs(createdBy: creatorID), in: database)
             try await CloudKitBatch.delete(await recordIDs(ofType: RecordType.report, createdBy: creatorID), in: database)
 
             // Follows go, unlike votes. A follow changes nothing anyone else can see - it only says
@@ -114,6 +114,13 @@ public struct MyDataCounts: Sendable, Equatable {
 
     /// Queried by CloudKit's own creator reference rather than by our denormalised `creatorID`, so it
     /// also catches record types that have no such field.
+    private func commentRecordIDs(createdBy userRecordName: String) async -> [CKRecord.ID] {
+
+        guard container.configuration.allowComments else { return [] }
+
+        return await recordIDs(ofType: RecordType.comment, createdBy: userRecordName)
+    }
+
     private func recordIDs(ofType recordType: String, createdBy userRecordName: String) async -> [CKRecord.ID] {
 
         let reference = CKRecord.Reference(recordID: CKRecord.ID(recordName: userRecordName), action: .none)
