@@ -6,9 +6,6 @@ Users can submit bugs and feature requests, vote, follow updates, reply, report 
 roadmap. Developers get a triage portal for status, labels, replies, image moderation and deletion.
 The package author receives no data and has no access to your container.
 
-> **2.0 prerelease:** the CloudKit rebuild currently lives on the `cloudkit-rebuild` branch. The
-> `2.0.0` version requirement shown below will work after that release is tagged.
-
 ## Requirements
 
 - iOS 17+ or macOS 14+
@@ -18,23 +15,15 @@ The package author receives no data and has no access to your container.
 
 ## Installation
 
-While 2.0 is in prerelease, add the package in Xcode and select the
-`cloudkit-rebuild` branch:
+In Xcode, choose **File → Add Package Dependencies…**, enter:
 
 ```
 https://github.com/Tom4259/SwiftUIFeatureBugReport
 ```
 
-Or use the branch from `Package.swift`:
+Use the **Up to Next Major Version** rule starting at `2.0.0`.
 
-```swift
-.package(
-    url: "https://github.com/Tom4259/SwiftUIFeatureBugReport",
-    branch: "cloudkit-rebuild"
-)
-```
-
-After 2.0.0 is tagged, prefer:
+Or add the package in `Package.swift`:
 
 ```swift
 .package(
