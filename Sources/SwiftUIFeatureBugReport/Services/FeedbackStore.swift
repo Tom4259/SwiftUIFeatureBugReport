@@ -85,11 +85,21 @@ import Observation
         if let startupTask {
 
             await startupTask.value
+
+            // Startup has run, but its load may not have landed - a transient failure, or the
+            // `.CKAccountChanged` handler resetting `requests` after it. Read again rather than leaving
+            // the board empty until someone pulls to refresh.
+            if !requests.hasLoadedOnce { await load() }
+
             return
         }
 
-        guard container.identityState == .resolving else { return }
-
+        // No `identityState` guard here. It was standing in for "startup has not run yet", but
+        // `observeAccountChanges` resolves identity independently of this method, and CloudKit posts
+        // `.CKAccountChanged` routinely during launch. A board appearing after that found the state
+        // already `.ready`, skipped startup entirely and never loaded - pull to refresh was the only
+        // way to populate it, because `refresh()` calls `load()` directly. `startupTask` above is the
+        // sentinel that actually tracks whether startup has run.
         let task = Task { @MainActor [weak self] in
 
             guard let self else { return }
