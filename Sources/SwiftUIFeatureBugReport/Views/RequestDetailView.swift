@@ -61,6 +61,7 @@ public struct RequestDetailView: View {
                     .textSelection(.enabled)
 
                 Text(request.body)
+                    .textSelection(.enabled)
 
                 HStack(spacing: 6) {
 

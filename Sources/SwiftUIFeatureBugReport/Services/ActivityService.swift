@@ -131,12 +131,27 @@ import UserNotifications
 
     // MARK: - Subscriptions
 
+    /// The activity push's title line: the triggering request's own title, and nothing around it.
+    ///
+    /// The key is the bare format string because there is no English in this line to translate - the one
+    /// thing it carries is a title the user typed themselves. A host app that wants something around it
+    /// adds `"%@" = "Update: %@";` to its own catalogue.
+    ///
+    /// `nonisolated`, like the two below, because it is a constant rather than state: nothing about it
+    /// belongs to the main actor, and the tests read it from a plain test function.
+    nonisolated static let activityTitleFormat = "%@"
+
     /// One subscription per `kind` (§8.1).
     ///
     /// `CKSubscription.NotificationInfo` is fixed **when the subscription is created**, not per event,
     /// so a literal `alertBody` would be identical forever. Dynamic text has to come from
     /// `alertLocalizationKey` plus `alertLocalizationArgs`, where the args are **field names** and
     /// CloudKit substitutes their values from the triggering record server-side.
+    ///
+    /// Every key here is its own en-GB source string rather than a token like `ACTIVITY_COMMENT`. Keys
+    /// resolve against the host app's bundle and a missing one is shown verbatim, so the tokens were
+    /// arriving on screen as machine text in any app that had not copied them into a catalogue. English
+    /// keys make that fallback harmless and still leave the strings translatable by the integrator.
     ///
     /// The status value itself is deliberately kept out of the push: one subscription means one format
     /// string, and pushing a raw value like `updatePending` through `%@` leaks machine strings into
@@ -158,7 +173,7 @@ import UserNotifications
 
             let info = CKSubscription.NotificationInfo()
 
-            info.titleLocalizationKey = "ACTIVITY_TITLE"
+            info.titleLocalizationKey = Self.activityTitleFormat
             info.titleLocalizationArgs = [FieldKey.requestTitle]
             info.alertLocalizationKey = kind.localizationKey
             info.shouldSendContentAvailable = true
@@ -171,8 +186,21 @@ import UserNotifications
         }
     }
 
+    /// The two lines of the developer's new-request push, in en-GB.
+    ///
+    /// Neither takes an argument: the request's own title is not pushed, because one subscription means
+    /// one fixed format string and the portal queue is a tap away. That leaves them as plain sentences an
+    /// integrator can translate, or leave exactly as they read here.
+    nonisolated static let developerNotificationTitle = "New request"
+    nonisolated static let developerNotificationBody = "A user created a new request."
+
     /// Fires when anyone *else* creates a request (§8.2). The `creatorID != me` clause is what stops
     /// the developer being notified of their own test submissions.
+    ///
+    /// Sent as localization keys whose keys are the English sentences above, the same convention as the
+    /// activity subscriptions. This notification used to push `ACTIVITY_TITLE` and `NEW_REQUEST`, which
+    /// is what a developer saw on the lock screen unless they had copied both tokens into their app's
+    /// catalogue. An English key shown verbatim is already the notification.
     public func registerDeveloperSubscription() async {
 
         guard container.isDeveloper, let me = container.currentUserRecordID else { return }
@@ -186,9 +214,8 @@ import UserNotifications
 
         let info = CKSubscription.NotificationInfo()
 
-        info.titleLocalizationKey = "ACTIVITY_TITLE"
-        info.titleLocalizationArgs = [FieldKey.title]
-        info.alertLocalizationKey = "NEW_REQUEST"
+        info.titleLocalizationKey = Self.developerNotificationTitle
+        info.alertLocalizationKey = Self.developerNotificationBody
         info.shouldSendContentAvailable = true
         info.desiredKeys = [FieldKey.title, FieldKey.type]
         info.soundName = "default"

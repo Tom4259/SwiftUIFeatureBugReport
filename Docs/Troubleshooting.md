@@ -22,10 +22,14 @@ records, and deploying a schema does not move test data.
 Deploy schema changes from CloudKit Console. Importing into Development does not automatically update
 Production.
 
-## A notification displays `ACTIVITY_TITLE` or `NEW_REQUEST`
+## A notification displays `ACTIVITY_TITLE` or another raw key
 
-The key is missing from the host app's `Localizable.xcstrings` or `Localizable.strings`. Add all
-keys listed in [Notifications](Notifications.md), rebuild and reinstall.
+Those keys are gone — notification text is now sent as readable en-GB strings, so there is no token
+left to leak. A device still showing one has an old subscription: its text was fixed when it was saved.
+Saving over the same ID replaces it, which the next launch does, so relaunch. If it persists, delete
+the subscription in CloudKit Console and relaunch again.
+
+Note that subscriptions are per-environment, so clearing one in Development leaves Production alone.
 
 ## No notifications arrive
 
@@ -35,7 +39,6 @@ Check all of the following:
 - Notification permission is enabled in system settings.
 - The app has launched since permission was granted, allowing APNs registration.
 - The CloudKit subscription exists in the same environment as the triggering record.
-- The expected localization keys exist in the host app.
 
 ## User comments are disabled but CloudKit reports a missing type
 

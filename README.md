@@ -107,23 +107,29 @@ In CloudKit Console, open the public database's built-in `Users` record, find th
 Repeat this for every developer account. If the IDs are hard-coded in the app, adding another one
 requires a new build.
 
-### 4. Add notification strings
+### 4. Notification strings — nothing to do
 
-Add these keys to the host app's `Localizable.xcstrings` or `Localizable.strings`:
+Push notification text is sent as localization keys that **are** their own en-GB strings, so there is no
+setup step here. An app that adds nothing shows the English:
 
 ```text
-"ACTIVITY_TITLE"          = "%@";
-"ACTIVITY_STATUS"         = "Status updated";
-"ACTIVITY_COMMENT"        = "New reply";
-"ACTIVITY_COMPLETE"       = "Marked complete";
-"ACTIVITY_IMAGE_APPROVED" = "Your image was approved";
-"ACTIVITY_IMAGE_REJECTED" = "Your image was removed";
-"ACTIVITY_SHIPPED"        = "Shipped";
-"NEW_REQUEST"             = "New feedback";
+"Status updated"
+"New reply"
+"Marked complete"
+"Your image was approved"
+"Your image was removed"
+"Shipped"
+"New request"
+"A user created a new request."
+"%@"
 ```
 
-Only `ACTIVITY_TITLE` contains a placeholder. Notification permission is requested after the user's
-first successful submission rather than when the board opens.
+To translate them, add those as keys to the host app's `Localizable.xcstrings` or
+`Localizable.strings` and translate them there. `%@` is the activity notification's title, which CloudKit
+fills with the request's own title.
+
+Notification permission is requested after the user's first successful submission rather than when the
+board opens. See [Notifications](Docs/Notifications.md).
 
 ### 5. Match the configuration to the schema
 

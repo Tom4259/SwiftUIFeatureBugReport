@@ -41,7 +41,15 @@ struct PortalRequestView: View {
 
             Section {
 
+                // The title was this section's header. A header is not selectable on either platform -
+                // and it is shortened and capitalised on the way in - so it reads as a row instead,
+                // which is what lets the developer lift the wording straight out of the triage screen.
+                Text(request.title)
+                    .font(.headline)
+                    .textSelection(.enabled)
+
                 Text(request.body)
+                    .textSelection(.enabled)
 
                 LabeledContent("Author") {
 
@@ -55,12 +63,11 @@ struct PortalRequestView: View {
                 LabeledContent("Votes", value: store.votes.tally(for: request.id).formatted(.number))
                 LabeledContent("Reports", value: store.reports.reportCount(for: request.id).formatted(.number))
 
-            if let breakdown = reportBreakdown, !breakdown.isEmpty {
+                if let breakdown = reportBreakdown, !breakdown.isEmpty {
 
-                LabeledContent("Reported as", value: breakdown)
+                    LabeledContent("Reported as", value: breakdown)
+                }
             }
-
-            } header: { Text(request.title) }
 
             Section {
 

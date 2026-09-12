@@ -180,18 +180,24 @@ public enum ActivityKind: String, CaseIterable, Sendable, Hashable {
 
     /// The `alertLocalizationKey` used by the push subscription for this kind (§8.1).
     ///
-    /// These keys are resolved against the **host app's** bundle, not the package's, so the
-    /// integrator has to add them to their own string table. Listed in the README.
+    /// The key **is** the en-GB source string, as it is for every other string in this package (see
+    /// `Package.swift`). Push keys resolve against the **host app's** bundle, not the package's, and a
+    /// key with no entry there is displayed verbatim - which is why the old `ACTIVITY_COMMENT` tokens
+    /// arrived on screen as machine text whenever an integrator had not copied them into a catalogue.
+    ///
+    /// Written in English the fallback costs nothing: an app that translates nothing still shows a
+    /// readable sentence, and an app that wants these in another language adds the same strings to its
+    /// own catalogue and translates them there.
     public var localizationKey: String {
 
         switch self {
 
-        case .status: return "ACTIVITY_STATUS"
-        case .comment: return "ACTIVITY_COMMENT"
-        case .complete: return "ACTIVITY_COMPLETE"
-        case .imageApproved: return "ACTIVITY_IMAGE_APPROVED"
-        case .imageRejected: return "ACTIVITY_IMAGE_REJECTED"
-        case .shipped: return "ACTIVITY_SHIPPED"
+        case .status: return "Status updated"
+        case .comment: return "New reply"
+        case .complete: return "Marked complete"
+        case .imageApproved: return "Your image was approved"
+        case .imageRejected: return "Your image was removed"
+        case .shipped: return "Shipped"
         }
     }
 }
