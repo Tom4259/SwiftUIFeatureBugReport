@@ -23,7 +23,8 @@ import Observation
     public let moderation: ModerationService
     public let accountData: AccountDataService
 
-    /// Set once the first submission has asked for notification permission, so it is asked once.
+    /// Set once permission has been asked for, so it is asked once per session whichever route got
+    /// there - a user's first submission, or a developer opening the portal.
     private var hasAskedForNotifications = false
 
     /// Shared by every public entry view. A configuration-based view owns a fresh store, while
@@ -122,6 +123,33 @@ import Observation
             await activity.registerForRemoteNotificationsIfAuthorized()
             await activity.registerSubscriptions()
             await activity.registerDeveloperSubscription()
+            await activity.registerDeveloperCommentSubscription()
+        }
+    }
+
+    /// Asked when the developer opens the portal, rather than at launch or on submission (§8.3).
+    ///
+    /// A developer never goes through `submit`, so the first-submission prompt never reaches them and
+    /// both developer subscriptions end up delivering to a device that never registered with APNs.
+    /// Opening the portal is the developer's equivalent intent signal: it is the one screen the
+    /// new-request and new-comment pushes exist to send them back to. Asking at launch instead would
+    /// spend the one system prompt before they have shown any interest in the board at all.
+    ///
+    /// Safe to call on every appearance. `requestNotificationAuthorization` returns early unless the
+    /// status is `.notDetermined`, so a developer who has already answered is never re-asked.
+    public func askForDeveloperNotificationsIfNeeded() async {
+
+        guard container.isDeveloper, !hasAskedForNotifications else { return }
+
+        hasAskedForNotifications = true
+
+        // The subscriptions themselves save without permission and already did so at startup. What a
+        // grant adds is the APNs registration, which `requestNotificationAuthorization` performs
+        // itself; re-saving covers identity having resolved after that startup pass.
+        if await activity.requestNotificationAuthorization() {
+
+            await activity.registerDeveloperSubscription()
+            await activity.registerDeveloperCommentSubscription()
         }
     }
 
@@ -130,17 +158,25 @@ import Observation
         await requests.loadBoard()
 
         // One bulk query each, none depending on the others.
+        //
+        // The activity feed is in here rather than only in `refresh()` because the board now carries an
+        // unread badge on its Updates button. A feed fetched only on pull-to-refresh leaves that badge
+        // reading zero on a cold launch - precisely the moment it has something to say. It costs a
+        // signed-out user nothing: `feed()` returns early without an identity. It also means the
+        // `.CKAccountChanged` handler, which resets `activity` and then calls this, refills it.
         async let tallies: Void = votes.loadTallies()
         async let reportCounts: Void = reports.loadReportCounts()
         async let following: Void = follows.loadMyFollows()
+        async let activityFeed: Void = activity.feed()
 
-        _ = await (tallies, reportCounts, following)
+        _ = await (tallies, reportCounts, following, activityFeed)
     }
 
+    /// The views' refresh entry point. Identical to `load()` now that the activity feed has joined it,
+    /// and kept under its own name because it is what every pull-to-refresh and refresh button calls.
     public func refresh() async {
 
         await load()
-        await activity.feed()
     }
 
     /// Deletes this user's data and reconciles the state derived from it.
@@ -185,6 +221,32 @@ import Observation
 
         return requests.requests.filter { !reports.isBlocked($0.creatorID) }
     }
+
+    /// What the board's own list shows: `boardRequests` without the work that has already shipped.
+    ///
+    /// Completed requests are the oldest things on the board and so carry the largest tallies, which
+    /// under the default vote sort parked them permanently at the top of the one screen whose question
+    /// is "what should I build next". Nothing is lost by dropping them: `RoadmapView` groups completed
+    /// work by the version it shipped in, and the board still *finds* it by search - see
+    /// `FeedbackBoardView.displayedRequests`, where searching deliberately reads `boardRequests`
+    /// instead. That split is load-bearing. The board is where someone looks before filing, so a
+    /// shipped request that no longer has a row of its own must still answer to its own name, or
+    /// hiding it simply converts it into duplicate reports.
+    ///
+    /// This applies to the developer too. The board is the shared view of what is still live, and the
+    /// portal is where completed work is administered. Their moderation relaxation above is a separate
+    /// axis and survives: a developer still sees what they have hidden, badged, as long as it is open.
+    public var openBoardRequests: [FeedbackRequest] {
+
+        boardRequests.filter { Self.belongsOnOpenBoard($0.status) }
+    }
+
+    /// The rule itself, free of any state, so it can be tested without a container.
+    ///
+    /// Only `complete` goes. `updatePending` stays on the board on purpose: "fixed, waiting on a
+    /// release" is the most reassuring thing a reporter can be shown, and hiding it reads as the
+    /// report having been dropped, which invites them to file it again.
+    nonisolated static func belongsOnOpenBoard(_ status: RequestStatus) -> Bool { status != .complete }
 
     public func isVisible(_ request: FeedbackRequest) -> Bool {
 

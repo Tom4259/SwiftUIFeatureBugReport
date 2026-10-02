@@ -17,6 +17,8 @@ package sends **is its own en-GB source string**, the same convention the rest o
 "Shipped"
 "New request"
 "A user created a new request."
+"New comment"
+"A user commented on a request."
 "%@"
 ```
 
@@ -44,6 +46,12 @@ starts pushing a different one and has to be saved again before any device sees 
 The system permission prompt appears after the user's first successful request submission. Opening
 the board does not prompt.
 
+A developer is asked when they first open the developer portal instead. They never submit a request,
+so the first-submission prompt would never reach them and both developer subscriptions would end up
+delivering to a device that had never registered with APNs. The portal is the one screen those two
+pushes exist to send them back to, which makes opening it the developer's equivalent intent signal. A
+developer who has already answered is not asked again.
+
 Once permission exists, the app registers with APNs on every launch. CloudKit subscriptions use
 deterministic IDs and are safely attempted again during startup.
 
@@ -61,12 +69,18 @@ Required app capabilities:
 ## What is delivered
 
 Activity subscriptions fire when a developer changes status, replies, marks a request complete,
-moderates an image or announces a shipped version. A separate developer subscription fires for a new
-request created by someone else.
+moderates an image or announces a shipped version. Two separate developer subscriptions fire for a
+new request and for a new comment, in both cases only when someone else created it.
 
 For an activity notification the title is the request title and the body is a short action such as “New
 reply.” The activity feed carries the full display-ready message.
 
 The developer's new-request notification reads “New request” over “A user created a new request.” The
-request's own title is not pushed: one subscription means one fixed format string, and the portal
-queue is a tap away.
+new-comment notification reads “New comment” over “A user commented on a request.” Neither pushes the
+request's own title: one subscription means one fixed format string, and the portal queue is a tap
+away.
+
+The developer's two notifications write no `Activity` record, so they do not appear in the Updates
+feed. The portal queue is the developer's durable view and the push is only the nudge to open it. A
+developer reply, by contrast, does write one, so the user sees it in Updates even if the push was
+missed or notification permission was refused.

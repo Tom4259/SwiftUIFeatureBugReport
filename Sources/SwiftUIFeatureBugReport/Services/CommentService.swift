@@ -117,6 +117,8 @@ import Observation
         record[FieldKey.creatorID] = me
 
         try await save(record, bumping: request)
+
+        await writeCommentActivity(for: request, from: me)
     }
 
     private func save(_ record: CKRecord, bumping request: FeedbackRequest) async throws {
@@ -142,6 +144,44 @@ import Observation
             parent[FieldKey.lastActivityAt] = Date.now
 
             _ = try? await database.save(parent)
+        }
+    }
+
+    /// The reply notice addressed to the request's author, which is what the user's
+    /// `activity-comment-<user>` subscription has always been waiting for (§8.1).
+    ///
+    /// Deliberately here rather than in `save(_:bumping:)`, which both comment paths share: `Activity`
+    /// grants `CREATE` to `dev` alone, so `addUserComment` cannot write the mirror of this and does
+    /// not try. The developer learns about user comments from a subscription on `Comment` instead -
+    /// see `ActivityService.registerDeveloperCommentSubscription`.
+    ///
+    /// The record name is auto-generated rather than composed through `RecordID.activity`: a
+    /// deduplicated name is for broadcasts, and a developer may legitimately reply more than once.
+    ///
+    /// Best effort, and deliberately not thrown. The reply itself already saved, so throwing here
+    /// would tell the developer their reply had not posted. The error is surfaced rather than
+    /// swallowed, matching `ModerationService.writeActivity`: an `Activity` write that fails quietly
+    /// means users stop being notified and nothing anywhere says so.
+    private func writeCommentActivity(for request: FeedbackRequest, from me: String) async {
+
+        // Replying to your own test submission should not push to yourself.
+        guard !request.creatorID.isEmpty, request.creatorID != me else { return }
+
+        let record = CKRecord(recordType: RecordType.activity)
+
+        record[FieldKey.request] = CKRecord.Reference(recordID: request.id, action: .deleteSelf)
+        record[FieldKey.recipientID] = request.creatorID
+        record[FieldKey.kind] = ActivityKind.comment.rawValue
+        record[FieldKey.requestTitle] = request.title
+        record[FieldKey.message] = String(localized: "The developer replied to your request")
+
+        do {
+
+            _ = try await database.save(record)
+        }
+        catch {
+
+            self.error = CloudKitErrorHandler.classify(error)
         }
     }
 

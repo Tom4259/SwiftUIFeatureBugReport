@@ -240,6 +240,20 @@ public struct FeedbackBoardView: View {
 
                 Spacer(minLength: 8)
 
+                Button(action: { destination = .updates }) {
+
+                    Image(systemName: updatesSymbolName)
+                        .symbolRenderingMode(.multicolor)
+                }
+                .help("Updates")
+                .accessibilityLabel(updatesAccessibilityLabel)
+
+                // Stands in for the iOS toolbar's `ToolbarSpacer`. This header is deliberately plain
+                // content rather than a toolbar, so the separation has to be a plain spacer too. The
+                // stack's own 10pt sits on either side of it, so the gap between the two groups reads
+                // as roughly triple the gap within them.
+                Spacer().frame(width: 8)
+
                 Button(action: { Task { await refreshEverything() } }) {
 
                     Image(systemName: "arrow.clockwise")
@@ -418,6 +432,24 @@ public struct FeedbackBoardView: View {
 
     @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
 
+        // Out of the "more" menu and into the bar: this is the one destination a *user* comes back to
+        // check, and it is the only one that can be waiting on them. The rest stay in the menu.
+        ToolbarItem(placement: toolbarTrailingPlacement) {
+
+            NavigationLink { UpdatesView(store: store, embedsNavigationStack: false) }
+                label: { Label("Updates", systemImage: updatesSymbolName) }
+                .symbolRenderingMode(.multicolor)
+                .accessibilityLabel(updatesAccessibilityLabel)
+        }
+
+        // Separates the notification from the create-and-manage cluster - on OSes that draw grouped
+        // toolbar backgrounds it splits them into two groups, which is the whole point. `ToolbarSpacer`
+        // is OS 26; below that the items simply sit next to each other, as they already did.
+        if #available(iOS 26.0, macOS 26.0, *) {
+
+            ToolbarSpacer(.fixed, placement: toolbarTrailingPlacement)
+        }
+
         if store.container.isDeveloper {
 
             ToolbarItem(placement: toolbarTrailingPlacement) {
@@ -460,9 +492,6 @@ public struct FeedbackBoardView: View {
         Button(action: { destination = .roadmap },
                label: { Label("Roadmap", systemImage: "map") })
 
-        Button(action: { destination = .updates },
-               label: { Label("Updates", systemImage: "bell") })
-
         Button(action: { destination = .myData },
                label: { Label("My requests", systemImage: "person.crop.circle") })
 
@@ -470,13 +499,24 @@ public struct FeedbackBoardView: View {
         NavigationLink { RoadmapView(store: store, embedsNavigationStack: false) }
             label: { Label("Roadmap", systemImage: "map") }
 
-        NavigationLink { UpdatesView(store: store, embedsNavigationStack: false) }
-            label: { Label("Updates", systemImage: "bell") }
-
         NavigationLink { MyDataView(store: store, embedsNavigationStack: false) }
             label: { Label("My requests", systemImage: "person.crop.circle") }
 
 #endif
+    }
+
+    /// A dot, not a number.
+    ///
+    /// `unreadCount` is derived from one date high-water mark over a capped feed, so it can produce a
+    /// startling figure that means less than it appears to - and unlike unread messages, nobody triages
+    /// activity by count. The number is still given to VoiceOver below, where it costs nothing.
+    private var updatesSymbolName: String { store.activity.unreadCount > 0 ? "bell.badge" : "bell" }
+
+    private var updatesAccessibilityLabel: Text {
+
+        let unread = store.activity.unreadCount
+
+        return unread > 0 ? Text("Updates, ^[\(unread) new item](inflect: true)") : Text("Updates")
     }
 
     @ViewBuilder private var emptyState: some View {
@@ -492,7 +532,7 @@ public struct FeedbackBoardView: View {
             VStack(spacing: 16) {
 
                 FeedbackEmptyState(symbol: filter == .bugs ? "ladybug.circle" : "lightbulb.circle",
-                                   title: "Nothing yet",
+                                   title: "No open requests",
                                    message: "Be the first to send some feedback.")
 
                 Button("Send Feedback") { showingForm = true }
@@ -540,7 +580,12 @@ public struct FeedbackBoardView: View {
 
         let needle = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        let filtered = store.boardRequests.filter { request in
+        // Browsing lists what is still live; searching reaches the whole board, completed work
+        // included. The board is where someone looks before filing, so a shipped request has to answer
+        // to its own name even with no row of its own - otherwise hiding it just produces duplicates.
+        let pool = needle.isEmpty ? store.openBoardRequests : store.boardRequests
+
+        let filtered = pool.filter { request in
 
             guard filter.matches(request.type) else { return false }
 

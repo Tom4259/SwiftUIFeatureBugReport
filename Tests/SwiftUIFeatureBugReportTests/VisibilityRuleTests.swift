@@ -103,3 +103,42 @@ struct CanEditTests {
         #expect(FeedbackStore.canEdit(isMine: true, status: .complete, tally: 0, hasVoted: false) == false)
     }
 }
+
+
+/// Which statuses the board lists while nobody is searching. The roadmap is the other half of this
+/// split, so a status dropped here has to be one the roadmap picks up - otherwise it leaves the app
+/// with no screen at all.
+@Suite("Open board rule")
+struct OpenBoardRuleTests {
+
+    @Test("Completed work is the only thing the board drops")
+    func completeIsDropped() {
+
+        #expect(FeedbackStore.belongsOnOpenBoard(.complete) == false)
+    }
+
+    /// The reassurance case. "Fixed, waiting on a release" reads as the report having been dropped if
+    /// it vanishes from the board, which is what makes people file it a second time.
+    @Test("Work in flight stays on the board")
+    func inFlightStays() {
+
+        #expect(FeedbackStore.belongsOnOpenBoard(.open))
+        #expect(FeedbackStore.belongsOnOpenBoard(.inProgress))
+        #expect(FeedbackStore.belongsOnOpenBoard(.updatePending))
+    }
+
+    /// Board and roadmap have to cover all four between them. `RoadmapView` lists `inProgress`,
+    /// `updatePending` and `complete`, so `open` is the one status only the board can show - and the
+    /// rule must never drop it.
+    @Test("Every status is reachable from one screen or the other")
+    func noStatusIsOrphaned() {
+
+        let roadmapCovers: Set<RequestStatus> = [.inProgress, .updatePending, .complete]
+
+        for status in RequestStatus.allCases {
+
+            #expect(FeedbackStore.belongsOnOpenBoard(status) || roadmapCovers.contains(status),
+                    "\(status.rawValue) appears on neither the board nor the roadmap")
+        }
+    }
+}

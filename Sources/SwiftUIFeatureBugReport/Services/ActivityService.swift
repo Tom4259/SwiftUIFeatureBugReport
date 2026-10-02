@@ -23,12 +23,27 @@ import UserNotifications
     /// Deliberately not a per-request count. Counts kept locally go stale in both directions - a
     /// reinstall marks every thread unread, and a deleted request leaves a key behind forever - while
     /// a single high-water mark survives both.
-    private let lastSeenKey = "com.swiftuifeaturebugreport.lastSeenActivityDate"
+    private static let lastSeenKey = "com.swiftuifeaturebugreport.lastSeenActivityDate"
 
+    /// The observable half of `lastSeenActivityDate`. Read from `UserDefaults` once, at init.
+    private var lastSeen: Date
+
+    /// Backed by stored state rather than reading `UserDefaults` on every get, because the board's
+    /// unread badge observes this.
+    ///
+    /// A property computed straight off `UserDefaults` mutates nothing `@Observable` can see, so
+    /// `markAllSeen()` changed what `unreadCount` returns without telling SwiftUI - and the badge
+    /// cleared only when something unrelated happened to re-render the board, which is worse than not
+    /// clearing at all. Going through a stored property makes the write observable; writing through on
+    /// every set keeps the persistence exactly as it was.
     public var lastSeenActivityDate: Date {
 
-        get { UserDefaults.standard.object(forKey: lastSeenKey) as? Date ?? .distantPast }
-        set { UserDefaults.standard.set(newValue, forKey: lastSeenKey) }
+        get { lastSeen }
+        set {
+
+            lastSeen = newValue
+            UserDefaults.standard.set(newValue, forKey: Self.lastSeenKey)
+        }
     }
 
     public var unreadCount: Int {
@@ -41,6 +56,7 @@ import UserNotifications
     public init(container: FeedbackContainer) {
 
         self.container = container
+        self.lastSeen = UserDefaults.standard.object(forKey: Self.lastSeenKey) as? Date ?? .distantPast
     }
 
     func reset() { activity = [] }
@@ -218,6 +234,53 @@ import UserNotifications
         info.alertLocalizationKey = Self.developerNotificationBody
         info.shouldSendContentAvailable = true
         info.desiredKeys = [FieldKey.title, FieldKey.type]
+        info.soundName = "default"
+
+        subscription.notificationInfo = info
+
+        await save(subscription)
+    }
+
+    /// The two lines of the developer's new-comment push, in en-GB.
+    nonisolated static let developerCommentTitle = "New comment"
+    nonisolated static let developerCommentBody = "A user commented on a request."
+
+    /// Fires when anyone *else* writes a `Comment` - the developer's half of a comment thread, in the
+    /// same shape as the new-request subscription above.
+    ///
+    /// A subscription on `Comment` rather than an `Activity` written by the commenter, because
+    /// `Activity` grants `CREATE` to `dev` alone. Widening that to `_icloud` would let any client pick
+    /// its own `recipientID` and `requestTitle` - and `requestTitle` is the value the activity push
+    /// substitutes into its **title line**. Since `creatorID` is world-readable and queryable on
+    /// `Request`, recipients are discoverable, so that grant would turn the push channel into an
+    /// arbitrary-text relay to any user. The grant stays as it is and the developer's own device does
+    /// the watching instead. `Comment.creatorID` is already `QUERYABLE`, so this needs no schema change.
+    ///
+    /// No `Activity` record is written, so this does not appear in the developer's Updates feed. That
+    /// matches the new-request notification: the portal queue is the developer's durable view, and the
+    /// push is only the nudge to go and look.
+    ///
+    /// Guarded on `allowComments` because the `Comment` record type does not exist at all in the
+    /// comments-off schema, the same reason `CommentService.load` refuses to query it.
+    public func registerDeveloperCommentSubscription() async {
+
+        guard container.isDeveloper,
+              container.configuration.allowComments,
+              let me = container.currentUserRecordID else { return }
+
+        let predicate = NSPredicate(format: "%K != %@", FieldKey.creatorID, me)
+
+        let subscription = CKQuerySubscription(recordType: RecordType.comment,
+                                               predicate: predicate,
+                                               subscriptionID: "developer-new-comment-\(me)",
+                                               options: [.firesOnRecordCreation])
+
+        let info = CKSubscription.NotificationInfo()
+
+        info.titleLocalizationKey = Self.developerCommentTitle
+        info.alertLocalizationKey = Self.developerCommentBody
+        info.shouldSendContentAvailable = true
+        info.desiredKeys = [FieldKey.request, FieldKey.creatorID]
         info.soundName = "default"
 
         subscription.notificationInfo = info

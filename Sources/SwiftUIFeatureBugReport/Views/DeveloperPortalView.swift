@@ -74,9 +74,13 @@ public struct DeveloperPortalView: View {
         container
             .task {
 
-                guard !store.requests.hasLoadedOnce else { return }
+                if !store.requests.hasLoadedOnce { await store.start() }
 
-                await store.start()
+                // An `if` rather than the `guard` this replaced: the portal is usually reached from
+                // the board's toolbar, so the board has already loaded and a `guard` would return
+                // before ever reaching the line below. Placed after `start` so identity has resolved
+                // and `isDeveloper` is answerable.
+                await store.askForDeveloperNotificationsIfNeeded()
             }
             .confirmationDialog("Delete request?",
                                 isPresented: Binding(get: { pendingDeletion != nil },

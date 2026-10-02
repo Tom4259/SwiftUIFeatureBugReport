@@ -199,6 +199,20 @@ FeedbackFormView(
 Metadata is disclosed before submission and stored in a separate record readable only by its creator
 and the developer role.
 
+## What each screen shows
+
+`FeedbackBoardView` lists work that is still live: open requests, ones in progress, and ones fixed
+but awaiting a release. Completed requests are left off the list, because they accumulate the most
+votes over time and otherwise sit permanently at the top of the default vote sort.
+
+They remain reachable two ways. Searching the board still matches completed requests, so anyone
+checking before they file finds work you have already shipped instead of reporting it again. And
+`RoadmapView` groups completed requests by the version they shipped in, alongside the work still in
+flight.
+
+Pairing the two as separate tabs, as in [Sharing a store](#sharing-a-store), gives users both halves
+at once. Otherwise the board reaches the roadmap from its "more" menu.
+
 ## Navigation
 
 `FeedbackBoardView` uses the navigation container supplied by your app. On iOS, place it inside a
