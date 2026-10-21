@@ -50,6 +50,32 @@ enum CloudKitErrorHandler {
         }
     }
 
+    /// Upper bound on pages a single paged query will follow.
+    ///
+    /// CloudKit cursors are opaque, so a continuation that never advances cannot be detected by
+    /// comparing cursors. Capping the page count bounds the loop instead; hitting the cap is
+    /// reported as an incomplete load rather than spinning.
+    static let maxQueryPages = 200
+
+    /// What a paged load reports when it stopped at `maxQueryPages`.
+    static var incompleteLoad: FeedbackError {
+
+        .underlying(String(localized: "Some items could not be loaded. Try again in a moment."))
+    }
+
+    /// The first failure among a page's match results that is not "record missing", classified.
+    ///
+    /// Individual entries can fail while the page itself succeeds; `try?` used to drop them silently.
+    static func firstMatchFailure(in results: [(CKRecord.ID, Result<CKRecord, any Error>)]) -> FeedbackError? {
+
+        for (_, result) in results {
+
+            if case .failure(let error) = result, !isRecordMissing(error) { return classify(error) }
+        }
+
+        return nil
+    }
+
     /// Same as `classify`, for errors coming out of a **query** rather than a fetch by record ID.
     ///
     /// CloudKit reuses `.unknownItem` for two very different things: "that record is gone" when you
