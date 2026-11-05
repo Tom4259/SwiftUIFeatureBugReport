@@ -274,6 +274,10 @@ struct PortalRequestView: View {
 
                     // One row: the two are a single either/or decision, and stacking them made the
                     // section taller than the pane it sits in.
+                    //
+                    // `.borderless` is load-bearing. On iOS a Form row holding default-styled buttons
+                    // becomes one tap target that fires *every* button in it, so tapping Approve also
+                    // ran Reject - which deleted the image and left Approve failing on a stale record.
                     HStack(spacing: 10) {
 
                         Button(action: { moderateImage(approve: true) },
@@ -285,6 +289,7 @@ struct PortalRequestView: View {
 
                         Spacer(minLength: 0)
                     }
+                    .buttonStyle(.bordered)
                     .disabled(store.moderation.isWorking)
                 }
 

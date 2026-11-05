@@ -44,11 +44,13 @@ import Observation
             ? DeviceInfo.getAppVersion()
             : request.resolvedInVersion
 
-        await mutate(request, bumpsActivity: true) { record in
+        let saved = await mutate(request, bumpsActivity: true) { record in
 
             record[FieldKey.status] = status.rawValue
             record[FieldKey.resolvedInVersion] = version
         }
+
+        guard saved else { return }
 
         let message = String(localized: "Status changed to \(String(localized: statusName(status)))")
 
@@ -116,10 +118,12 @@ import Observation
 
     public func approveImage(on request: FeedbackRequest) async {
 
-        await mutate(request, bumpsActivity: false) { record in
+        let saved = await mutate(request, bumpsActivity: false) { record in
 
             record[FieldKey.imageState] = ImageState.approved.rawValue
         }
+
+        guard saved else { return }
 
         await writeActivity(kind: .imageApproved,
                             request: request,
@@ -134,11 +138,13 @@ import Observation
     /// whole set - a request's images are reviewed together, so there is nothing to reject piecemeal.
     public func rejectImage(on request: FeedbackRequest) async {
 
-        await mutate(request, bumpsActivity: false) { record in
+        let saved = await mutate(request, bumpsActivity: false) { record in
 
             record[FieldKey.imageState] = ImageState.rejected.rawValue
             record[FieldKey.images] = nil
         }
+
+        guard saved else { return }
 
         await writeActivity(kind: .imageRejected,
                             request: request,
@@ -245,9 +251,13 @@ import Observation
 
     // MARK: - Internals
 
+    /// Returns whether the change actually reached the server. Callers that notify someone about the
+    /// change must check it: an Activity saying "your image was approved" after the approval failed
+    /// is a notification about something that never happened.
+    @discardableResult
     private func mutate(_ request: FeedbackRequest,
                         bumpsActivity: Bool,
-                        _ changes: (CKRecord) -> Void) async {
+                        _ changes: (CKRecord) -> Void) async -> Bool {
 
         isWorking = true
 
@@ -264,16 +274,20 @@ import Observation
             let saved = try await database.save(record)
 
             requests.replaceLocally(saved)
+
+            return true
         }
         catch {
 
             guard !CloudKitErrorHandler.isRecordMissing(error) else {
 
                 requests.removeLocally(request.id)
-                return
+                return false
             }
 
             self.error = CloudKitErrorHandler.classify(error)
+
+            return false
         }
     }
 

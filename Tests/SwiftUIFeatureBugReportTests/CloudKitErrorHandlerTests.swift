@@ -116,6 +116,15 @@ struct CloudKitErrorHandlerTests {
                                                                     recordB: ckError(.networkFailure)])) == false)
     }
 
+    /// CloudKit's own text for this is "client oplock error updating record", which is what a
+    /// developer saw when a double-fired Approve lost its save to Reject.
+    @Test("A lost save race reads as a stale edit, not CloudKit's oplock text")
+    func serverRecordChangedIsExplained() {
+
+        #expect(CloudKitErrorHandler.classify(ckError(.serverRecordChanged)) == .recordChangedElsewhere)
+        #expect(CloudKitErrorHandler.classify(partialFailure([recordA: ckError(.serverRecordChanged)])) == .recordChangedElsewhere)
+    }
+
     @Test("A non-CloudKit error keeps its own message")
     func nonCloudKitError() {
 

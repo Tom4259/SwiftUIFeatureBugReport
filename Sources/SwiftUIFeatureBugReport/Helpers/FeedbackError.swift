@@ -69,3 +69,15 @@ public enum FeedbackError: LocalizedError, Sendable {
         }
     }
 }
+
+extension FeedbackError {
+
+    /// A save lost a race: the record changed on the server after it was fetched.
+    ///
+    /// Carried by `.underlying` rather than a case of its own because `FeedbackError` is public, and
+    /// a new case would break every host app that switches over it exhaustively.
+    static var recordChangedElsewhere: FeedbackError {
+
+        .underlying(String(localized: "This was changed somewhere else while you were working on it. Refresh and try again."))
+    }
+}

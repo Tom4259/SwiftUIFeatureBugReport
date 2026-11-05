@@ -45,6 +45,11 @@ enum CloudKitErrorHandler {
         case .permissionFailure:
             return .developerRoleNotConfigured
 
+        // CloudKit's own text for this is "client oplock error updating record", which tells nobody
+        // anything. It means the record was saved by someone else between our fetch and our save.
+        case .serverRecordChanged:
+            return .recordChangedElsewhere
+
         default:
             return .underlying(ckError.localizedDescription)
         }
