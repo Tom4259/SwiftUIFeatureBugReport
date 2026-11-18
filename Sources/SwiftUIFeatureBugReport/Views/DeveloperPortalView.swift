@@ -436,8 +436,10 @@ public struct DeveloperPortalView: View {
 
                 switch queue {
 
-                // Named for exactly what it filters on, so the tab and the behaviour cannot drift apart.
-                case .open: return request.status == .open && request.moderation != .hidden
+                // Everything not yet complete - the same rule the public board uses, so triage and the
+                // board agree on what "open" means. Hidden requests stay in, badged by the row, matching
+                // what a developer sees on the board. `All` stays as the only way back to completed ones.
+                case .open: return FeedbackStore.belongsOnOpenBoard(request.status)
                 case .reported: return store.reports.reportCount(for: request.id) > 0
                 case .images: return request.imageState == .pending
                 case .all: return true
