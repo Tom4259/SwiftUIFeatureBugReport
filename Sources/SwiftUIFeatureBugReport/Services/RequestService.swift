@@ -218,6 +218,11 @@ import Observation
         seeded[FieldKey.creatorID] = creatorID
         seeded[FieldKey.lastActivityAt] = Date.now
 
+        // The one deliberate exception: `workaroundCommentID` is left unwritten. Nothing queries on
+        // it, so absence costs nothing - and a production container whose schema has not yet been
+        // deployed with the field would reject this save outright, taking every submission down with
+        // it. Unwritten here, a missed deploy only fails the developer's "Post workaround".
+
         let environment = DeviceInfo.current()
 
         seeded[FieldKey.appVersion] = environment.appVersion

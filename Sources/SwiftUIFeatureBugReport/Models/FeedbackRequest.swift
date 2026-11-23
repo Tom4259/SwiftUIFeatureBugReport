@@ -33,6 +33,19 @@ public struct FeedbackRequest: Identifiable, Sendable, Hashable {
     public var lastActivityAt: Date
     public let createdAt: Date
 
+    /// The record name of the developer reply pinned as this request's workaround. Empty when there
+    /// is none.
+    ///
+    /// `Request` grants its creator `WRITE`, so the creator could point this anywhere. That is why
+    /// the text lives in a `DevComment` rather than here: the callout only ever renders a developer
+    /// reply that belongs to this request, so the worst a creator can do is show or hide the badge
+    /// on their own row - the same reach they already have over `status`.
+    public var workaroundCommentID: String
+
+    /// Whether to badge this request as having a workaround. Not once it is complete: a fix
+    /// supersedes the workaround, and "Fixed in 2.1" is the line worth showing.
+    public var showsWorkaround: Bool { !workaroundCommentID.isEmpty && status != .complete }
+
     /// Up to `maximumImages`. Populated only by the detail view, which is the one place that fetches
     /// the assets - a list query must never pull them.
     public var imageURLs: [URL] = []
@@ -56,6 +69,7 @@ public struct FeedbackRequest: Identifiable, Sendable, Hashable {
         self.creatorID = record[FieldKey.creatorID] as? String ?? ""
         self.lastActivityAt = record[FieldKey.lastActivityAt] as? Date ?? record.creationDate ?? .now
         self.createdAt = record.creationDate ?? .now
+        self.workaroundCommentID = record[FieldKey.workaroundCommentID] as? String ?? ""
 
         self.environment = DeviceEnvironment(
             appVersion: record[FieldKey.appVersion] as? String ?? "",
@@ -85,6 +99,7 @@ public struct FeedbackRequest: Identifiable, Sendable, Hashable {
         record[FieldKey.deviceModel] = environment.deviceModel
         record[FieldKey.platform] = environment.platform
         record[FieldKey.lastActivityAt] = lastActivityAt
+        record[FieldKey.workaroundCommentID] = workaroundCommentID
     }
 
     /// The keys a list query should ask for - everything except `image`.
@@ -95,14 +110,18 @@ public struct FeedbackRequest: Identifiable, Sendable, Hashable {
             FieldKey.moderation, FieldKey.imageState, FieldKey.labels, FieldKey.creatorID,
             FieldKey.resolvedInVersion,
             FieldKey.appVersion, FieldKey.buildNumber, FieldKey.osVersion,
-            FieldKey.deviceModel, FieldKey.platform, FieldKey.lastActivityAt
+            FieldKey.deviceModel, FieldKey.platform, FieldKey.lastActivityAt,
+            FieldKey.workaroundCommentID
         ]
     }
 
-    /// Search results only need enough to render a row and vote from it (§6.2).
+    /// Search results only need enough to render a row and vote from it (§6.2). The workaround pointer
+    /// is included because "Workaround available" is nearly as good as "Fixed in 2.1" at stopping a
+    /// duplicate before it is filed.
     static var searchDesiredKeys: [String] {
 
-        [FieldKey.title, FieldKey.status, FieldKey.type, FieldKey.moderation, FieldKey.resolvedInVersion]
+        [FieldKey.title, FieldKey.status, FieldKey.type, FieldKey.moderation, FieldKey.resolvedInVersion,
+         FieldKey.workaroundCommentID]
     }
 
     // `Equatable` and `Hashable` are both synthesised, deliberately.

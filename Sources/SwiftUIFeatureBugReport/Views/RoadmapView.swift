@@ -68,7 +68,7 @@ public struct RoadmapView: View {
 
                             ForEach(group.requests) { row(for: $0) }
 
-                        } header: { Label(group.status.localised, systemImage: group.status.symbolName) }
+                        } header: { header(for: group.status) }
                     }
                 }
 
@@ -149,11 +149,24 @@ public struct RoadmapView: View {
         #endif
     }
 
+    /// The in-flight sections, closest to shipping first. `complete` is the other half of the roadmap,
+    /// grouped by version below. The board-rule tests read this list, so a status added here or
+    /// dropped from it is checked against the board rather than trusted.
+    static let upcomingStatuses: [RequestStatus] = [.updatePending, .inProgress, .acknowledged]
+
+    /// `acknowledged` is headed "Planned" whatever mix of bugs and features it holds: on a roadmap,
+    /// "on the list" is what the section means.
+    @ViewBuilder private func header(for status: RequestStatus) -> some View {
+
+        if status == .acknowledged { Label("Planned", systemImage: "map") }
+        else { Label(status.localised, systemImage: status.symbolName) }
+    }
+
     private var upcoming: [(status: RequestStatus, requests: [FeedbackRequest])] {
 
         let visible = store.visibleRequests
 
-        return [RequestStatus.updatePending, .inProgress].map { status in
+        return Self.upcomingStatuses.map { status in
 
             (status, visible.filter { $0.status == status }
                 .sorted { store.votes.tally(for: $0.id) > store.votes.tally(for: $1.id) })

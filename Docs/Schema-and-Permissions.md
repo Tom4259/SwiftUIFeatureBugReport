@@ -54,6 +54,12 @@ ranking.
   client-side threshold counting.
 - `Request.images` is a `LIST<ASSET>`.
 - `resolvedInVersion` is separate from the version from which a request was reported.
+- `Request.workaroundCommentID` holds the record name of a `DevComment`, not the workaround's text.
+  `Request` grants its creator `WRITE`, so a text field there would let a request's author write
+  words displayed as the developer's. Clients render the pointer only when it resolves to a
+  `DevComment` on the same request. It is not indexed and is not written when a request is created,
+  so a Production container that has not yet been deployed with it still accepts new requests — only
+  pinning a workaround fails until it is.
 
 If user comments are disabled, use `Schema-NoComments.ckdb` and set `allowComments: false`. The
 configuration flag controls the client; omitting the record type enforces the decision at CloudKit.

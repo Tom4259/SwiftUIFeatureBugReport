@@ -119,6 +119,7 @@ setup step here. An app that adds nothing shows the English:
 "Your image was approved"
 "Your image was removed"
 "Shipped"
+"Workaround available"
 "New request"
 "A user created a new request."
 "%@"
@@ -201,14 +202,17 @@ and the developer role.
 
 ## What each screen shows
 
-`FeedbackBoardView` lists work that is still live: open requests, ones in progress, and ones fixed
-but awaiting a release. Completed requests are left off the list, because they accumulate the most
+`FeedbackBoardView` lists work that is still live: open requests, acknowledged ones, ones in
+progress, and ones fixed but awaiting a release. Completed requests are left off the list, because they accumulate the most
 votes over time and otherwise sit permanently at the top of the default vote sort.
 
 They remain reachable two ways. Searching the board still matches completed requests, so anyone
 checking before they file finds work you have already shipped instead of reporting it again. And
 `RoadmapView` groups completed requests by the version they shipped in, alongside the work still in
-flight.
+flight. Acknowledged requests appear there under "Planned".
+
+A request with a pinned workaround carries a "Workaround" badge on the board and in search results,
+and shows the workaround at the top of its detail view until it is marked complete.
 
 Pairing the two as separate tabs, as in [Sharing a store](#sharing-a-store), gives users both halves
 at once. Otherwise the board reaches the roadmap from its "more" menu.

@@ -52,7 +52,7 @@ import Observation
 
         guard saved else { return }
 
-        let message = String(localized: "Status changed to \(String(localized: statusName(status)))")
+        let message = String(localized: "Status changed to \(String(localized: statusName(status, type: request.type)))")
 
         await writeActivity(kind: status == .complete ? .complete : .status,
                             request: request,
@@ -213,27 +213,87 @@ import Observation
 
     // MARK: - Notifying
 
-    /// One `Activity` per follower - "shipped in 2.1". Batched, and split on `.limitExceeded`; a
-    /// request popular enough to be worth announcing has enough followers to overflow one batch.
-    ///
-    /// Voters are included alongside explicit followers because voting auto-follows, and votes cast
-    /// before following existed have no `Follow` record to find.
+    /// "Shipped in 2.1", to everyone following and everyone who voted. Deduplicated, so a double-tapped
+    /// announcement collides server-side instead of pushing twice.
     public func notifyFollowers(of request: FeedbackRequest, message: String) async {
+
+        await broadcast(kind: .shipped, about: request, message: message, deduplicated: true)
+    }
+
+    // MARK: - Workarounds
+
+    /// Pins one of this request's developer replies as its workaround, then tells everyone following.
+    ///
+    /// The pointer is all that is written: the text stays in the `DevComment`, so it keeps the
+    /// developer-only authorship a field on `Request` could not have. A build that predates
+    /// workarounds ignores the pointer and shows the reply in the thread like any other.
+    ///
+    /// `authorAlreadyNotified` is for a reply posted moments ago, whose author already has a "New
+    /// reply" push for it. Leaving them out of this broadcast saves them a second push about the same
+    /// words - and "New reply" is the push every build of the app can receive. Pinning an older reply
+    /// passes `false`, because nothing has told the author it is now the workaround.
+    @discardableResult
+    public func pinWorkaround(_ commentID: CKRecord.ID,
+                              on request: FeedbackRequest,
+                              authorAlreadyNotified: Bool) async -> Bool {
+
+        let saved = await mutate(request, bumpsActivity: true) { record in
+
+            record[FieldKey.workaroundCommentID] = commentID.recordName
+        }
+
+        guard saved else { return false }
+
+        var excluded: Set<String> = authorAlreadyNotified ? [request.creatorID] : []
+
+        if let me = container.currentUserRecordID { excluded.insert(me) }
+
+        // Not deduplicated: each pin is a new event, and the record-name key would otherwise swallow
+        // the notice for a *replacement* workaround, whose message reads the same.
+        await broadcast(kind: .workaround,
+                        about: request,
+                        message: String(localized: "The developer posted a workaround"),
+                        excluding: excluded,
+                        deduplicated: false)
+
+        return true
+    }
+
+    /// Clears the pin. The reply itself stays in the thread, and nobody is notified - a workaround
+    /// going away is not news anyone is waiting for.
+    public func unpinWorkaround(on request: FeedbackRequest) async {
+
+        await mutate(request, bumpsActivity: false) { record in
+
+            record[FieldKey.workaroundCommentID] = ""
+        }
+    }
+
+    // MARK: - Broadcasting
+
+    /// One `Activity` per follower. Batched, and split on `.limitExceeded`; a request popular enough
+    /// to be worth announcing has enough followers to overflow one batch.
+    private func broadcast(kind: ActivityKind,
+                           about request: FeedbackRequest,
+                           message: String,
+                           excluding excluded: Set<String> = [],
+                           deduplicated: Bool) async {
 
         isWorking = true
 
         defer { isWorking = false }
 
-        let recipients = await follows.recipientIDs(for: request.id)
-            .union(await votes.voterIDs(for: request.id))
+        let recipients = Self.broadcastRecipients(followers: await follows.recipientIDs(for: request.id),
+                                                  voters: await votes.voterIDs(for: request.id),
+                                                  excluding: excluded)
 
         let records = recipients.map { recipient in
 
-            activityRecord(kind: .shipped,
+            activityRecord(kind: kind,
                            request: request,
                            recipientID: recipient,
                            message: message,
-                           deduplicated: true)
+                           deduplicated: deduplicated)
         }
 
         do {
@@ -247,6 +307,16 @@ import Observation
 
             self.error = CloudKitErrorHandler.classify(error)
         }
+    }
+
+    /// Voters are included alongside explicit followers because voting auto-follows, and votes cast
+    /// before following existed have no `Follow` record to find. Empty IDs are dropped: an Activity
+    /// addressed to nobody can never be delivered.
+    nonisolated static func broadcastRecipients(followers: Set<String>,
+                                                voters: [String],
+                                                excluding excluded: Set<String>) -> Set<String> {
+
+        followers.union(voters).subtracting(excluded).filter { !$0.isEmpty }
     }
 
     // MARK: - Internals
@@ -341,11 +411,12 @@ import Observation
         return record
     }
 
-    private func statusName(_ status: RequestStatus) -> String.LocalizationValue {
+    private func statusName(_ status: RequestStatus, type: FeedbackType) -> String.LocalizationValue {
 
         switch status {
 
         case .open: return "Open"
+        case .acknowledged: return type == .feature ? "Planned" : "Acknowledged"
         case .inProgress: return "In Progress"
         case .updatePending: return "Update Pending"
         case .complete: return "Complete"

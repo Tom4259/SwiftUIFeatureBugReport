@@ -237,9 +237,15 @@ public struct FeedbackFormView: View {
 
                             ResolvedVersionBadge(version: match.resolvedInVersion)
                         }
-                        else if match.status != .open {
+                        else if match.status != .open || match.showsWorkaround {
 
-                            StatusBadge(status: match.status)
+                            // A workaround is the next best thing: there is something to try today.
+                            HStack(spacing: 6) {
+
+                                if match.status != .open { StatusBadge(status: match.status, type: match.type) }
+
+                                if match.showsWorkaround { WorkaroundBadge() }
+                            }
                         }
                     }
 

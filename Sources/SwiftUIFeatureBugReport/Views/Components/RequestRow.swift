@@ -38,12 +38,15 @@ struct RequestRow: View {
                     .lineLimit(2)
             }
 
-            if !request.labels.isEmpty || request.status != .open || request.moderation == .hidden {
+            if !request.labels.isEmpty || request.status != .open || request.moderation == .hidden
+                || request.showsWorkaround {
 
                 HStack(spacing: 6) {
 
                     if request.status == .complete { ResolvedVersionBadge(version: request.resolvedInVersion) }
-                    else if request.status != .open { StatusBadge(status: request.status) }
+                    else if request.status != .open { StatusBadge(status: request.status, type: request.type) }
+
+                    if request.showsWorkaround { WorkaroundBadge() }
 
                     if request.moderation == .hidden { HiddenBadge() }
 
@@ -62,6 +65,7 @@ struct RequestRow: View {
                 if request.imageState == .pending {
 
                     Label("Image in review", systemImage: "clock")
+                        .labelStyle(.compact)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

@@ -15,6 +15,12 @@ struct PortalRequestView: View {
     @State private var metadata: [String: String] = [:]
     @State private var newLabel = ""
     @State private var reply = ""
+    @State private var workaroundDraft = ""
+    @State private var isPostingWorkaround = false
+
+    /// The reply waiting on "Replace the current workaround?" - set by its button, cleared by either
+    /// answer.
+    @State private var replacementCandidate: FeedbackComment?
     @State private var shippedMessage = ""
     @State private var resolvedVersion = ""
     @State private var isLoadingDetail = true
@@ -93,6 +99,7 @@ struct PortalRequestView: View {
             }
 
             statusSection
+            workaroundSection
             labelSection
             imageSection
             moderationSection
@@ -149,6 +156,18 @@ struct PortalRequestView: View {
                                       showingDelete: $showingDelete,
                                       showingBlockAuthor: $showingBlockAuthor,
                                       showingDeleteAuthorData: $showingDeleteAuthorData))
+        .confirmationDialog("Replace the current workaround?",
+                            isPresented: Binding(get: { replacementCandidate != nil },
+                                                 set: { if !$0 { replacementCandidate = nil } }),
+                            titleVisibility: .visible,
+                            presenting: replacementCandidate) { comment in
+
+            Button("Replace workaround") { pin(comment) }
+
+        } message: { _ in
+
+            Text("This reply is pinned instead and everyone following the request is notified. The current workaround stays in the thread as a normal reply.")
+        }
         .task { await reloadDetail() }
 
         #if os(macOS)
@@ -195,7 +214,7 @@ struct PortalRequestView: View {
                 }
             })) {
 
-                ForEach(RequestStatus.allCases, id: \.self) { Text($0.localised).tag($0) }
+                ForEach(RequestStatus.allCases, id: \.self) { Text($0.localised(for: request.type)).tag($0) }
             }
 
             if request.status == .complete || request.status == .updatePending {
@@ -213,6 +232,61 @@ struct PortalRequestView: View {
           footer: {
 
             Text("Users searching before they submit see \"Fixed in \(resolvedVersion.isEmpty ? "…" : resolvedVersion)\" on this request. Hold it at Update Pending until the build is actually live.")
+          }
+    }
+
+    @ViewBuilder private var workaroundSection: some View {
+
+        Section {
+
+            if let pinned = store.comments.workaround(for: request) {
+
+                Text(pinned.body)
+                    .textSelection(.enabled)
+
+                Button(role: .destructive, action: { unpinWorkaround() },
+                       label: { Label("Unpin workaround", systemImage: "pin.slash") })
+                    .disabled(store.moderation.isWorking)
+            }
+            else if !request.workaroundCommentID.isEmpty && !isLoadingDetail {
+
+                // The pointer is set but resolves to no developer reply on this request - the reply was
+                // deleted, or the pointer was written by something other than the portal.
+                Text("The pinned reply can't be found, so users see no workaround.")
+                    .foregroundStyle(.secondary)
+
+                Button(role: .destructive, action: { unpinWorkaround() },
+                       label: { Label("Clear pin", systemImage: "pin.slash") })
+                    .disabled(store.moderation.isWorking)
+            }
+            else if request.workaroundCommentID.isEmpty {
+
+                FeedbackTextEditor(placeholder: "Describe the workaround", text: $workaroundDraft, minHeight: 70)
+
+                Button(action: { postWorkaround() }) {
+
+                    HStack {
+
+                        Label("Post workaround", systemImage: ActivityKind.workaround.symbolName)
+
+                        if isPostingWorkaround { Spacer(); ProgressView().controlSize(.small) }
+                    }
+                }
+                .disabled(workaroundDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                          || isPostingWorkaround)
+            }
+
+        } header: { Text("Workaround") }
+          footer: {
+
+            if request.workaroundCommentID.isEmpty {
+
+                Text("Posted as a developer reply and pinned to the top of the request, and everyone following is notified. To use a reply you've already posted, pin it from Replies below.")
+            }
+            else {
+
+                Text("Unpinning leaves the reply in the thread.")
+            }
           }
     }
 
@@ -363,8 +437,39 @@ struct PortalRequestView: View {
                             if !comment.isDeveloper && comment.creatorID != request.creatorID {
 
                                 Label("Not the author", systemImage: "exclamationmark.triangle.fill")
+                                    .labelStyle(.compact)
                                     .font(.caption2)
                                     .foregroundStyle(.orange)
+                            }
+
+                            // Only developer replies can be pinned: the callout says "from the
+                            // developer", and `DevComment` is the one record type that makes that true.
+                            if comment.isDeveloper {
+
+                                if comment.id.recordName == request.workaroundCommentID {
+
+                                    WorkaroundBadge()
+                                }
+                                else if request.workaroundCommentID.isEmpty {
+
+                                    Button(action: { pin(comment) },
+                                           label: { Label("Pin as workaround", systemImage: "pin") })
+                                        .labelStyle(.compact)
+                                        .font(.caption2)
+                                        .buttonStyle(.borderless)
+                                        .disabled(store.moderation.isWorking)
+                                }
+                                else {
+
+                                    // Says what it does, and asks first: it swaps out the workaround
+                                    // users are already relying on and notifies everyone following.
+                                    Button(action: { replacementCandidate = comment },
+                                           label: { Label("Replace workaround", systemImage: "pin") })
+                                        .labelStyle(.compact)
+                                        .font(.caption2)
+                                        .buttonStyle(.borderless)
+                                        .disabled(store.moderation.isWorking)
+                                }
                             }
 
                             Spacer()
@@ -478,12 +583,69 @@ struct PortalRequestView: View {
 
         let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        guard !text.isEmpty else { return }
+
+        // Cleared up front so the box empties on tap; the draft comes back only if the save fails.
+        // Previously it was cleared after the save whether or not it succeeded, which lost the text
+        // on failure.
+        let draft = reply
+        reply = ""
+
         Task {
 
             do { try await store.comments.addDeveloperComment(to: request, body: text) }
-            catch { self.error = CloudKitErrorHandler.classify(error) }
+            catch {
 
-            reply = ""
+                if reply.isEmpty { reply = draft }
+
+                self.error = CloudKitErrorHandler.classify(error)
+            }
+        }
+    }
+
+    /// Same clear-on-tap behaviour as `postReply`. The reload afterwards picks up the new pin and the
+    /// new reply together, which is what swaps the editor for the pinned text.
+    private func postWorkaround() {
+
+        let text = workaroundDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !text.isEmpty else { return }
+
+        let draft = workaroundDraft
+        workaroundDraft = ""
+        isPostingWorkaround = true
+
+        Task {
+
+            do { try await store.postWorkaround(text, on: request) }
+            catch {
+
+                if workaroundDraft.isEmpty { workaroundDraft = draft }
+
+                self.error = CloudKitErrorHandler.classify(error)
+            }
+
+            await reloadDetail()
+
+            isPostingWorkaround = false
+        }
+    }
+
+    private func pin(_ comment: FeedbackComment) {
+
+        Task {
+
+            await store.moderation.pinWorkaround(comment.id, on: request, authorAlreadyNotified: false)
+            await reloadDetail()
+        }
+    }
+
+    private func unpinWorkaround() {
+
+        Task {
+
+            await store.moderation.unpinWorkaround(on: request)
+            await reloadDetail()
         }
     }
 

@@ -123,17 +123,19 @@ struct OpenBoardRuleTests {
     func inFlightStays() {
 
         #expect(FeedbackStore.belongsOnOpenBoard(.open))
+        #expect(FeedbackStore.belongsOnOpenBoard(.acknowledged))
         #expect(FeedbackStore.belongsOnOpenBoard(.inProgress))
         #expect(FeedbackStore.belongsOnOpenBoard(.updatePending))
     }
 
-    /// Board and roadmap have to cover all four between them. `RoadmapView` lists `inProgress`,
-    /// `updatePending` and `complete`, so `open` is the one status only the board can show - and the
-    /// rule must never drop it.
+    /// Board and roadmap have to cover every status between them. The roadmap's list is read from
+    /// `RoadmapView` itself rather than restated here, so changing it cannot leave this test checking a
+    /// copy. `open` is on neither list, so it is the one status only the board can show - and the rule
+    /// must never drop it.
     @Test("Every status is reachable from one screen or the other")
     func noStatusIsOrphaned() {
 
-        let roadmapCovers: Set<RequestStatus> = [.inProgress, .updatePending, .complete]
+        let roadmapCovers = Set(RoadmapView.upcomingStatuses).union([.complete])
 
         for status in RequestStatus.allCases {
 

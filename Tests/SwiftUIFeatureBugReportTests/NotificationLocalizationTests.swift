@@ -19,7 +19,8 @@ struct NotificationLocalizationTests {
             .complete: "Marked complete",
             .imageApproved: "Your image was approved",
             .imageRejected: "Your image was removed",
-            .shipped: "Shipped"
+            .shipped: "Shipped",
+            .workaround: "Workaround available"
         ]
 
         for (kind, key) in expected {

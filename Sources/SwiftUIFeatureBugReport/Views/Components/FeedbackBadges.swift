@@ -5,6 +5,31 @@
 
 import SwiftUI
 
+/// Icon and title with a tight, fixed gap.
+///
+/// The system styles space the two for a full-size row, and inside a `List` or `Form` they also line
+/// the icon up in the row's icon column - at `.caption2` that leaves the icon looking detached from its
+/// word ("◯     Open"). Every small badge and inline caption label uses this instead.
+struct CompactLabelStyle: LabelStyle {
+
+    var spacing: CGFloat = 3
+
+    func makeBody(configuration: Configuration) -> some View {
+
+        HStack(spacing: spacing) {
+
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+
+extension LabelStyle where Self == CompactLabelStyle {
+
+    static var compact: CompactLabelStyle { CompactLabelStyle() }
+}
+
+
 struct TypeBadge: View {
 
     let type: FeedbackType
@@ -25,15 +50,65 @@ struct StatusBadge: View {
 
     let status: RequestStatus
 
+    /// Needed because `acknowledged` reads "Planned" on a feature.
+    let type: FeedbackType
+
     var body: some View {
 
-        Label(status.localised, systemImage: status.symbolName)
+        Label(status.localised(for: type), systemImage: status.symbolName(for: type))
             .font(.caption2)
-            .labelStyle(.titleAndIcon)
+            .labelStyle(.compact)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(status.tint.opacity(0.15), in: Capsule())
             .foregroundStyle(status.tint)
+    }
+}
+
+
+/// The developer has pinned a workaround to this request. Rendered next to the status rather than
+/// instead of it, because the usual case is both at once: "In Progress, and here's a way round it".
+struct WorkaroundBadge: View {
+
+    var body: some View {
+
+        Label("Workaround", systemImage: ActivityKind.workaround.symbolName)
+            .font(.caption2)
+            .labelStyle(.compact)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Color.teal.opacity(0.15), in: Capsule())
+            .foregroundStyle(.teal)
+            .accessibilityLabel(Text("Workaround available"))
+    }
+}
+
+
+/// The pinned workaround, shown at the top of a request.
+///
+/// Takes the `FeedbackComment` rather than a string on purpose: the text is a `DevComment`, which only
+/// the `dev` role can create, so "from the developer" here is as unforgeable as the reply badge.
+struct WorkaroundCallout: View {
+
+    let comment: FeedbackComment
+
+    var body: some View {
+
+        VStack(alignment: .leading, spacing: 6) {
+
+            Label("Workaround from the developer", systemImage: ActivityKind.workaround.symbolName)
+                .labelStyle(CompactLabelStyle(spacing: 5))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.teal)
+
+            Text(comment.body)
+                .textSelection(.enabled)
+
+            Text(comment.createdAt, format: .relative(presentation: .named))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -48,7 +123,7 @@ struct HiddenBadge: View {
 
         Label("Hidden", systemImage: "eye.slash")
             .font(.caption2)
-            .labelStyle(.titleAndIcon)
+            .labelStyle(.compact)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(Color.secondary.opacity(0.15), in: Capsule())
@@ -136,6 +211,7 @@ struct ResolvedVersionBadge: View {
             if version.isEmpty { Label("Fixed", systemImage: "checkmark.circle.fill") }
             else { Label("Fixed in \(version)", systemImage: "checkmark.circle.fill") }
         }
+        .labelStyle(.compact)
         .font(.caption2)
         .foregroundStyle(.green)
     }

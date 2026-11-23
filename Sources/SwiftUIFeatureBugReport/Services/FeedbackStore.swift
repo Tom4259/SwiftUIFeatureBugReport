@@ -293,6 +293,19 @@ import Observation
 
     // MARK: - Actions
 
+    /// Posts `text` as a developer reply and pins it as the request's workaround. Lives here because
+    /// it spans two services: the reply is a comment, the pin is moderation.
+    ///
+    /// Throws only if the reply fails to post. If the reply posts and the pin does not, the reply is
+    /// already in the thread and `moderation.error` says why - pinning that reply again from the
+    /// portal finishes the job without posting the text a second time.
+    public func postWorkaround(_ text: String, on request: FeedbackRequest) async throws {
+
+        let commentID = try await comments.addDeveloperComment(to: request, body: text)
+
+        await moderation.pinWorkaround(commentID, on: request, authorAlreadyNotified: true)
+    }
+
     /// Creating auto-votes for the creator, which is both sensible (you want your own request) and
     /// what makes the edit lock's "excluding my own vote" arithmetic work.
     public func submit(title: String,

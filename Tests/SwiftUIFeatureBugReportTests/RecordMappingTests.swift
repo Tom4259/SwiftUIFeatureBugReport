@@ -35,6 +35,7 @@ struct RequestMappingTests {
         record[FieldKey.deviceModel] = "arm64"
         record[FieldKey.platform] = "macOS"
         record[FieldKey.lastActivityAt] = Date(timeIntervalSince1970: 1_000)
+        record[FieldKey.workaroundCommentID] = "devComment1"
 
         return record
     }
@@ -59,6 +60,48 @@ struct RequestMappingTests {
         #expect(request.environment.deviceModel == "arm64")
         #expect(request.environment.platform == "macOS")
         #expect(request.lastActivityAt == Date(timeIntervalSince1970: 1_000))
+        #expect(request.workaroundCommentID == "devComment1")
+    }
+
+    /// Every request created before workarounds existed has no `workaroundCommentID` at all - and new
+    /// ones are created without it too, deliberately. Absent has to read as "no workaround".
+    @Test("A record without a workaround field reads as having none")
+    func missingWorkaroundField() throws {
+
+        let record = makeRecord()
+        record[FieldKey.workaroundCommentID] = nil
+
+        let request = try #require(FeedbackRequest(record: record))
+
+        #expect(request.workaroundCommentID.isEmpty)
+        #expect(request.showsWorkaround == false)
+    }
+
+    @Test("Acknowledged is read as itself, not as the open fallback")
+    func acknowledgedParses() throws {
+
+        let record = makeRecord()
+        record[FieldKey.status] = "acknowledged"
+
+        let request = try #require(FeedbackRequest(record: record))
+
+        #expect(request.status == .acknowledged)
+        #expect(RequestStatus.acknowledged.rawValue == "acknowledged")
+    }
+
+    @Test("A workaround is badged until the request is complete")
+    func workaroundBadgeStopsAtComplete() throws {
+
+        let record = makeRecord()
+
+        for status in RequestStatus.allCases {
+
+            record[FieldKey.status] = status.rawValue
+
+            let request = try #require(FeedbackRequest(record: record))
+
+            #expect(request.showsWorkaround == (status != .complete), "\(status.rawValue)")
+        }
     }
 
     @Test("A record of the wrong type is rejected rather than half-parsed")
@@ -103,7 +146,7 @@ struct RequestMappingTests {
             FieldKey.title, FieldKey.body, FieldKey.type, FieldKey.status, FieldKey.moderation,
             FieldKey.imageState, FieldKey.labels, FieldKey.resolvedInVersion, FieldKey.creatorID,
             FieldKey.appVersion, FieldKey.buildNumber, FieldKey.osVersion, FieldKey.deviceModel,
-            FieldKey.platform, FieldKey.lastActivityAt
+            FieldKey.platform, FieldKey.lastActivityAt, FieldKey.workaroundCommentID
         ]
 
         for key in required {
@@ -168,5 +211,81 @@ struct RequestMetadataTests {
                               recordID: CKRecord.ID(recordName: "meta_req1"))
 
         #expect(RequestMetadata(record: record) == nil)
+    }
+}
+
+
+/// The pointer to a pinned workaround lives on `Request`, which its creator can write. These are the
+/// checks that stop a pointer aimed anywhere else from rendering as the developer's words.
+@Suite("Pinned workaround resolution")
+struct WorkaroundResolutionTests {
+
+    private let requestID = CKRecord.ID(recordName: "req1")
+
+    private func request(pointingAt name: String) throws -> FeedbackRequest {
+
+        let record = CKRecord(recordType: RecordType.request, recordID: requestID)
+
+        record[FieldKey.workaroundCommentID] = name
+
+        return try #require(FeedbackRequest(record: record))
+    }
+
+    private func comment(_ name: String, type: String, on parent: String = "req1") throws -> FeedbackComment {
+
+        let record = CKRecord(recordType: type, recordID: CKRecord.ID(recordName: name))
+
+        record[FieldKey.request] = CKRecord.Reference(recordID: CKRecord.ID(recordName: parent), action: .deleteSelf)
+        record[FieldKey.body] = "Pull to refresh after waking."
+
+        return try #require(FeedbackComment(record: record))
+    }
+
+    @Test("A developer reply on this request resolves")
+    func resolves() throws {
+
+        let pinned = try comment("dev1", type: RecordType.devComment)
+        let comments = [try comment("user1", type: RecordType.comment), pinned]
+
+        #expect(CommentService.workaround(for: try request(pointingAt: "dev1"), in: comments) == pinned)
+    }
+
+    @Test("A pointer at a user's comment renders nothing")
+    func userCommentRejected() throws {
+
+        let comments = [try comment("user1", type: RecordType.comment)]
+
+        #expect(CommentService.workaround(for: try request(pointingAt: "user1"), in: comments) == nil)
+    }
+
+    @Test("A pointer at another request's developer reply renders nothing")
+    func otherRequestRejected() throws {
+
+        let comments = [try comment("dev1", type: RecordType.devComment, on: "req2")]
+
+        #expect(CommentService.workaround(for: try request(pointingAt: "dev1"), in: comments) == nil)
+    }
+
+    @Test("No pointer, no workaround")
+    func emptyPointer() throws {
+
+        let comments = [try comment("dev1", type: RecordType.devComment)]
+
+        #expect(CommentService.workaround(for: try request(pointingAt: ""), in: comments) == nil)
+    }
+}
+
+
+@Suite("Broadcast recipients")
+struct BroadcastRecipientTests {
+
+    @Test("Followers and voters are merged, exclusions and empty IDs removed")
+    func recipients() {
+
+        let recipients = ModerationService.broadcastRecipients(followers: ["_a", "_b", ""],
+                                                               voters: ["_b", "_c", "_author", "_dev"],
+                                                               excluding: ["_author", "_dev"])
+
+        #expect(recipients == ["_a", "_b", "_c"])
     }
 }

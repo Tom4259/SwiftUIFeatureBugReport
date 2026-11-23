@@ -46,6 +46,13 @@ public enum FeedbackType: String, CaseIterable, Sendable, Hashable {
 public enum RequestStatus: String, CaseIterable, Sendable, Hashable {
 
     case open
+
+    /// The developer has seen it and it is on the list, but work has not started. Closes the gap where
+    /// `open` meant both "nobody has looked" and "looked, it's real, it's queued".
+    ///
+    /// Reads "Acknowledged" on a bug and "Planned" on a feature - see `localised(for:)`. A build that
+    /// predates this case reads it as `.open`, which is exactly what those users saw before it existed.
+    case acknowledged
     case inProgress
     case updatePending
     case complete
@@ -54,6 +61,7 @@ public enum RequestStatus: String, CaseIterable, Sendable, Hashable {
 
         switch rawValue {
 
+        case "acknowledged": self = .acknowledged
         case "inProgress": self = .inProgress
         case "updatePending": self = .updatePending
         case "complete": self = .complete
@@ -61,15 +69,23 @@ public enum RequestStatus: String, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// The type-neutral name. Prefer `localised(for:)` wherever the request is to hand.
     public var localised: LocalizedStringKey {
 
         switch self {
 
         case .open: return "Open"
+        case .acknowledged: return "Acknowledged"
         case .inProgress: return "In Progress"
         case .updatePending: return "Update Pending"
         case .complete: return "Complete"
         }
+    }
+
+    /// "Acknowledged" on a bug, "Planned" on a feature. Every other status reads the same for both.
+    public func localised(for type: FeedbackType) -> LocalizedStringKey {
+
+        self == .acknowledged && type == .feature ? "Planned" : localised
     }
 
     public var symbolName: String {
@@ -77,10 +93,16 @@ public enum RequestStatus: String, CaseIterable, Sendable, Hashable {
         switch self {
 
         case .open: return "circle"
+        case .acknowledged: return "eye"
         case .inProgress: return "hammer"
         case .updatePending: return "arrow.down.circle"
         case .complete: return "checkmark.circle.fill"
         }
+    }
+
+    public func symbolName(for type: FeedbackType) -> String {
+
+        self == .acknowledged && type == .feature ? "map" : symbolName
     }
 
     public var tint: Color {
@@ -88,6 +110,7 @@ public enum RequestStatus: String, CaseIterable, Sendable, Hashable {
         switch self {
 
         case .open: return .secondary
+        case .acknowledged: return .purple
         case .inProgress: return .orange
         case .updatePending: return .blue
         case .complete: return .green
@@ -152,6 +175,11 @@ public enum ActivityKind: String, CaseIterable, Sendable, Hashable {
     case imageRejected
     case shipped
 
+    /// Sent to followers when the developer pins a workaround. A build that predates it has no
+    /// subscription for this kind, so it gets no push - but it still lists the notice in Updates,
+    /// where an unknown kind reads as `.status` and the message carries the text.
+    case workaround
+
     public init?(rawValue: String) {
 
         switch rawValue {
@@ -161,6 +189,7 @@ public enum ActivityKind: String, CaseIterable, Sendable, Hashable {
         case "imageApproved": self = .imageApproved
         case "imageRejected": self = .imageRejected
         case "shipped": self = .shipped
+        case "workaround": self = .workaround
         default: self = .status
         }
     }
@@ -175,6 +204,7 @@ public enum ActivityKind: String, CaseIterable, Sendable, Hashable {
         case .imageApproved: return "photo"
         case .imageRejected: return "photo.badge.exclamationmark"
         case .shipped: return "shippingbox"
+        case .workaround: return "arrow.triangle.branch"
         }
     }
 
@@ -198,6 +228,7 @@ public enum ActivityKind: String, CaseIterable, Sendable, Hashable {
         case .imageApproved: return "Your image was approved"
         case .imageRejected: return "Your image was removed"
         case .shipped: return "Shipped"
+        case .workaround: return "Workaround available"
         }
     }
 }

@@ -69,6 +69,16 @@ renamed or retyped, so validate changes in Development first.
 
 ## Release flow
 
+`Acknowledged` tells a reporter you have seen their request and it is on your list, before any work
+starts. It reads "Planned" on feature requests, and `RoadmapView` lists it under that heading. Builds
+of the app from before this status existed show it as `Open`.
+
+A workaround is a developer reply pinned to the top of a request. Post one from the portal's
+**Workaround** section, or pin a reply you have already posted from **Replies**. It is shown until the
+request is complete. Unpinning leaves the reply in the thread; replacing it with another reply asks
+for confirmation first, because followers are notified again. Builds from before workarounds
+existed show it as an ordinary developer reply.
+
 `Update Pending` and `Complete` distinguish a finished fix from an available release:
 
 - **Update Pending:** the change is written but users cannot install it yet.
@@ -84,7 +94,7 @@ renamed or retyped, so validate changes in Development first.
 - [ ] The release build uses the intended CloudKit container and Production environment.
 - [ ] A Production request can be created and read.
 - [ ] Voting, following and reporting work.
-- [ ] A developer can change status and reply.
+- [ ] A developer can change status, reply and pin a workaround.
 - [ ] Notification permission can be granted and a push is delivered.
 - [ ] Delete-my-data succeeds.
 

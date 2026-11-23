@@ -105,7 +105,10 @@ import Observation
 
     /// Posts as the developer. `DevComment` is the only record type carrying `dev: CREATE`, which is
     /// what makes developer authorship unforgeable - it is the record type, not a field.
-    public func addDeveloperComment(to request: FeedbackRequest, body: String) async throws {
+    ///
+    /// Returns the new reply's ID, which is what pinning it as a workaround needs.
+    @discardableResult
+    public func addDeveloperComment(to request: FeedbackRequest, body: String) async throws -> CKRecord.ID {
 
         guard let me = container.currentUserRecordID else { throw FeedbackError.notSignedIn }
 
@@ -116,16 +119,43 @@ import Observation
         record[FieldKey.requestCreator] = request.creatorID
         record[FieldKey.creatorID] = me
 
-        try await save(record, bumping: request)
+        let saved = try await save(record, bumping: request)
 
         await writeCommentActivity(for: request, from: me)
+
+        return saved.recordID
     }
 
-    private func save(_ record: CKRecord, bumping request: FeedbackRequest) async throws {
+    /// The developer reply pinned as `request`'s workaround, if it is among the loaded comments.
+    ///
+    /// Matches on record type and parent as well as name. The pointer lives on `Request`, which its
+    /// creator can write, so one aimed at a user's comment or at another request's reply has to render
+    /// nothing rather than dress that text up as the developer's.
+    public func workaround(for request: FeedbackRequest) -> FeedbackComment? {
+
+        Self.workaround(for: request, in: comments)
+    }
+
+    /// The rule itself, free of any state, so the authorship check can be tested without a container.
+    nonisolated static func workaround(for request: FeedbackRequest,
+                                       in comments: [FeedbackComment]) -> FeedbackComment? {
+
+        guard !request.workaroundCommentID.isEmpty else { return nil }
+
+        return comments.first {
+
+            $0.isDeveloper && $0.requestID == request.id && $0.id.recordName == request.workaroundCommentID
+        }
+    }
+
+    @discardableResult
+    private func save(_ record: CKRecord, bumping request: FeedbackRequest) async throws -> CKRecord {
+
+        let saved: CKRecord
 
         do {
 
-            let saved = try await database.save(record)
+            saved = try await database.save(record)
 
             if let comment = FeedbackComment(record: saved) {
 
@@ -145,6 +175,8 @@ import Observation
 
             _ = try? await database.save(parent)
         }
+
+        return saved
     }
 
     /// The reply notice addressed to the request's author, which is what the user's

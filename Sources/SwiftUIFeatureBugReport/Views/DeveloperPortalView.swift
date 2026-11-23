@@ -316,11 +316,14 @@ public struct DeveloperPortalView: View {
 
             HStack(spacing: 6) {
 
-                StatusBadge(status: request.status)
+                StatusBadge(status: request.status, type: request.type)
+
+                if request.showsWorkaround { WorkaroundBadge() }
 
                 if store.reports.reportCount(for: request.id) > 0 {
 
                     Label("\(store.reports.reportCount(for: request.id))", systemImage: "flag.fill")
+                        .labelStyle(.compact)
                         .font(.caption2)
                         .foregroundStyle(.red)
                 }
@@ -328,6 +331,7 @@ public struct DeveloperPortalView: View {
                 if request.imageState == .pending {
 
                     Label("Image", systemImage: "photo")
+                        .labelStyle(.compact)
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
@@ -335,6 +339,7 @@ public struct DeveloperPortalView: View {
                 if request.moderation == .hidden {
 
                     Label("Hidden", systemImage: "eye.slash")
+                        .labelStyle(.compact)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

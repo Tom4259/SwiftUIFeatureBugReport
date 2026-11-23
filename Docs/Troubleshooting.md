@@ -22,6 +22,9 @@ records, and deploying a schema does not move test data.
 Deploy schema changes from CloudKit Console. Importing into Development does not automatically update
 Production.
 
+If posting or pinning a workaround fails in Production and nothing else does, the missing field is
+`workaroundCommentID` on `Request`, added alongside workarounds. Deploy the schema to add it.
+
 ## A notification displays `ACTIVITY_TITLE` or another raw key
 
 Those keys are gone — notification text is now sent as readable en-GB strings, so there is no token

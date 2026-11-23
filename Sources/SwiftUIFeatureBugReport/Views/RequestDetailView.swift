@@ -68,12 +68,19 @@ public struct RequestDetailView: View {
                     TypeBadge(type: request.type)
 
                     if request.status == .complete { ResolvedVersionBadge(version: request.resolvedInVersion) }
-                    else { StatusBadge(status: request.status) }
+                    else { StatusBadge(status: request.status, type: request.type) }
 
                     if request.moderation == .hidden { HiddenBadge() }
 
                     ForEach(request.labels, id: \.self) { LabelChip(name: $0) }
                 }
+            }
+
+            // Straight under the request, above everything else: for someone hitting this bug, it is
+            // the most useful thing on the screen until the fix ships.
+            if let workaround = pinnedWorkaround {
+
+                Section { WorkaroundCallout(comment: workaround) }
             }
 
             imageSection
@@ -178,20 +185,35 @@ public struct RequestDetailView: View {
 
                 HStack { ProgressView(); Text("Loading replies…") }
             }
-            else if store.comments.comments.isEmpty {
+            else if threadComments.isEmpty {
 
                 Text("No replies yet")
                     .foregroundStyle(.secondary)
             }
             else {
 
-                ForEach(store.comments.comments) { comment in
+                ForEach(threadComments) { comment in
 
                     CommentRow(comment: comment)
                 }
             }
 
         } header: { Text("Replies") }
+    }
+
+    /// The developer reply pinned as the workaround - only while it still applies. Once the request is
+    /// complete the fix supersedes it, and the reply drops back into the thread.
+    private var pinnedWorkaround: FeedbackComment? {
+
+        request.showsWorkaround ? store.comments.workaround(for: request) : nil
+    }
+
+    /// The thread without the pinned workaround, which is already shown in its own section above.
+    private var threadComments: [FeedbackComment] {
+
+        guard let pinned = pinnedWorkaround else { return store.comments.comments }
+
+        return store.comments.comments.filter { $0.id != pinned.id }
     }
 
     @ViewBuilder private var replySection: some View {
@@ -361,6 +383,10 @@ public struct RequestDetailView: View {
 
         guard !text.isEmpty else { return }
 
+        // Cleared before the save rather than after it, so the box empties the moment Send is tapped
+        // instead of a round trip later. The draft comes back only if the save fails.
+        let draft = reply
+        reply = ""
         isSendingReply = true
 
         Task {
@@ -375,10 +401,11 @@ public struct RequestDetailView: View {
 
                     try await store.comments.addUserComment(to: request, body: text)
                 }
-
-                reply = ""
             }
             catch {
+
+                // Only restore into an empty box - never overwrite something typed while it was sending.
+                if reply.isEmpty { reply = draft }
 
                 self.error = CloudKitErrorHandler.classify(error)
             }

@@ -84,6 +84,7 @@ DEFINE SCHEMA
         status            STRING QUERYABLE,
         title             STRING QUERYABLE SEARCHABLE,
         type              STRING QUERYABLE,
+        workaroundCommentID STRING,
         GRANT READ, WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
         GRANT READ TO "_world",

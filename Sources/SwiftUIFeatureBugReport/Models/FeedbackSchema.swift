@@ -43,6 +43,10 @@ enum FieldKey {
     static let buildNumber = "buildNumber"
     static let lastActivityAt = "lastActivityAt"
 
+    /// The record name of the `DevComment` pinned as this request's workaround, or empty. A pointer
+    /// rather than the text itself, so the words keep `DevComment`'s developer-only authorship.
+    static let workaroundCommentID = "workaroundCommentID"
+
     // Vote / Report / Comment / Activity / RequestMetadata
     static let request = "request"
     static let category = "category"

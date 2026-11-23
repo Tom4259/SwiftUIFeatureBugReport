@@ -15,6 +15,7 @@ package sends **is its own en-GB source string**, the same convention the rest o
 "Your image was approved"
 "Your image was removed"
 "Shipped"
+"Workaround available"
 "New request"
 "A user created a new request."
 "New comment"
@@ -69,7 +70,9 @@ Required app capabilities:
 ## What is delivered
 
 Activity subscriptions fire when a developer changes status, replies, marks a request complete,
-moderates an image or announces a shipped version. Two separate developer subscriptions fire for a
+moderates an image, announces a shipped version or pins a workaround. A workaround notifies everyone
+following the request; its author is left out when the workaround is a reply posted that moment,
+because they already have a “New reply” push for it — the one every app version can receive. Two separate developer subscriptions fire for a
 new request and for a new comment, in both cases only when someone else created it.
 
 For an activity notification the title is the request title and the body is a short action such as “New
